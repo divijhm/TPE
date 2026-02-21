@@ -243,25 +243,22 @@ public class AIChatWindow : EditorWindow
 
         GUILayout.Space(6);
 
-        // ── Model picker (always rendered; disabled unless in Asset Generation) ─
-        bool assetMode = currentMode == ChatMode.AssetGeneration;
-        EditorGUI.BeginDisabledGroup(!assetMode);
+        // ── Model picker (only shown in Asset Generation mode) ────────────────
+        if (currentMode == ChatMode.AssetGeneration)
+        {
+            EditorGUILayout.LabelField("Model", GUILayout.Width(40));
+            int newModel = EditorGUILayout.Popup(selectedModelIndex, AssetModelLabels, GUILayout.Height(20));
+            if (newModel != selectedModelIndex)
+                selectedModelIndex = newModel;
 
-        EditorGUILayout.LabelField("Model", GUILayout.Width(40));
-        int newModel = EditorGUILayout.Popup(selectedModelIndex, AssetModelLabels, GUILayout.Height(20));
-        if (newModel != selectedModelIndex)
-            selectedModelIndex = newModel;
-
-        // Tier badge — always drawn so control count is constant
-        string tier = AssetModels[selectedModelIndex].Tier;
-        GUIStyle badgeStyle;
-        string   tierLabel;
-        if (tier == "\u00d70.33")      { badgeStyle = tierBudgetStyle   ?? SafeBadge; tierLabel = "BUDGET"; }
-        else if (tier == "\u00d71")    { badgeStyle = tierStandardStyle ?? SafeBadge; tierLabel = "STANDARD"; }
-        else                           { badgeStyle = tierPremiumStyle  ?? SafeBadge; tierLabel = "PREMIUM"; }
-        GUILayout.Label(tierLabel, badgeStyle, GUILayout.Width(58));
-
-        EditorGUI.EndDisabledGroup();
+            string tier = AssetModels[selectedModelIndex].Tier;
+            GUIStyle badgeStyle;
+            string   tierLabel;
+            if (tier == "\u00d70.33")      { badgeStyle = tierBudgetStyle   ?? SafeBadge; tierLabel = "BUDGET"; }
+            else if (tier == "\u00d71")    { badgeStyle = tierStandardStyle ?? SafeBadge; tierLabel = "STANDARD"; }
+            else                           { badgeStyle = tierPremiumStyle  ?? SafeBadge; tierLabel = "PREMIUM"; }
+            GUILayout.Label(tierLabel, badgeStyle, GUILayout.Width(58));
+        }
 
         EditorGUILayout.EndHorizontal();
 
