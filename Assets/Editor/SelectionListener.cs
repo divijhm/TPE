@@ -1,37 +1,49 @@
 using UnityEditor;
 using UnityEngine;
-using System.Collections.Generic;
 
 [InitializeOnLoad]
 public static class SelectionListener
 {
+    static double lastSelectionTime;
+    const double delay = 0.25;
+
     static SelectionListener()
     {
         Selection.selectionChanged += OnSelectionChanged;
+        EditorApplication.update += Update;
     }
 
     static void OnSelectionChanged()
     {
+        lastSelectionTime = EditorApplication.timeSinceStartup;
+    }
+
+    static void Update()
+    {
+        if (EditorApplication.timeSinceStartup - lastSelectionTime < delay)
+            return;
+
+        if (lastSelectionTime == 0)
+            return;
+
+        lastSelectionTime = 0;
+
+        ProcessFinalSelection();
+    }
+
+    static void ProcessFinalSelection()
+    {
         if (Selection.gameObjects.Length == 0)
             return;
 
-        List<SelectedObjectData> context =
-            SelectionContextBuilder.Build();
+        var context = SelectionContextBuilder.Build();
 
-        string json =
-            JsonUtility.ToJson(new Wrapper(context), true);
+        Debug.Log(JsonUtility.ToJson(context, true));
 
-        Debug.Log(json);
-    }
+        MCPClient client =
+            Object.FindObjectOfType<MCPClient>();
 
-    [System.Serializable]
-    class Wrapper
-    {
-        public List<SelectedObjectData> selection;
-
-        public Wrapper(List<SelectedObjectData> data)
-        {
-            selection = data;
-        }
+        if (client != null)
+            client.SendContext(context);
     }
 }
