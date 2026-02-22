@@ -31,6 +31,21 @@ public static class SelectionListener
         ProcessFinalSelection();
     }
 
+    // static void ProcessFinalSelection()
+    // {
+    //     if (Selection.gameObjects.Length == 0)
+    //         return;
+
+    //     var context = SelectionContextBuilder.Build();
+
+    //     Debug.Log(JsonUtility.ToJson(context, true));
+
+    //     MCPClient client =
+    //         Object.FindObjectOfType<MCPClient>();
+
+    //     if (client != null)
+    //         client.SendContext(context);
+    // }
     static void ProcessFinalSelection()
     {
         if (Selection.gameObjects.Length == 0)
@@ -38,12 +53,8 @@ public static class SelectionListener
 
         var context = SelectionContextBuilder.Build();
 
-        Debug.Log(JsonUtility.ToJson(context, true));
+        Debug.Log("Selection attached to chat");
 
-        MCPClient client =
-            Object.FindObjectOfType<MCPClient>();
-
-        if (client != null)
-            client.SendContext(context);
+        ChatWindow.AttachSelection(context);
     }
 }
