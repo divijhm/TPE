@@ -10,32 +10,33 @@ public static class SelectionContextBuilder
         List<Renderer> renderers = new();
 
         foreach (GameObject obj in Selection.gameObjects)
+            CollectRecursive(obj, objects, renderers);
+
+        return FinishBuild(objects, renderers);
+    }
+
+    static void CollectRecursive(GameObject obj, List<SelectedObjectData> objects, List<Renderer> renderers)
+    {
+        objects.Add(new SelectedObjectData
         {
-            // Selectable filter
-            if (obj.GetComponent<Selectable>() == null)
-                continue;
+            name = obj.name,
+            tag = obj.tag,
+            position = obj.transform.position,
+            rotation = obj.transform.eulerAngles,
+            scale = obj.transform.localScale
+        });
 
-            objects.Add(new SelectedObjectData
-            {
-                name = obj.name,
-                tag = obj.tag,
-                position = obj.transform.position,
-                rotation = obj.transform.eulerAngles,
-                scale = obj.transform.localScale
-            });
+        Renderer r = obj.GetComponent<Renderer>();
+        if (r != null)
+            renderers.Add(r);
 
-            Renderer r = obj.GetComponentInChildren<Renderer>();
-            if (r != null)
-                renderers.Add(r);
-        }
+        foreach (Transform child in obj.transform)
+            CollectRecursive(child.gameObject, objects, renderers);
+    }
 
+    static SelectionContext FinishBuild(List<SelectedObjectData> objects, List<Renderer> renderers)
+    {
         SelectionBounds bounds = ComputeBounds(renderers);
-
-        // return new SelectionContext
-        // {
-        //     selection = objects,
-        //     bounds = bounds
-        // };
         return new SelectionContext
         {
             prompt = "",

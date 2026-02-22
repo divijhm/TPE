@@ -5,6 +5,7 @@ public class ChatWindow : EditorWindow
 {
     static string prompt = "";
     static ChatAttachment attachment;
+    Vector2 attachmentScroll;
 
     [MenuItem("DAMN/Chat")]
     // public static void Open()
@@ -71,8 +72,15 @@ public class ChatWindow : EditorWindow
 
         GUILayout.Label($"Selected Objects: {ctx.selection.Count}");
 
+        attachmentScroll = EditorGUILayout.BeginScrollView(
+            attachmentScroll,
+            GUILayout.MaxHeight(200)
+        );
+
         foreach (var obj in ctx.selection)
             GUILayout.Label("• " + obj.name);
+
+        EditorGUILayout.EndScrollView();
 
         GUILayout.Label(
             $"Bounds Size: {ctx.bounds.size}");

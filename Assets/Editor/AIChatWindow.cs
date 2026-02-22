@@ -76,6 +76,36 @@ public class AIChatWindow : EditorWindow
     private double lastDotTime;
     private int    dotCount         = 1;
 
+    // ── Agent mode state machine ──────────────────────────────────────────────
+    private enum AgentPhase { None, ChangingScene, AdjustingScene, Done }
+    private AgentPhase   agentPhase      = AgentPhase.None;
+    private double       agentStepTime;
+    private int          agentStepIdx;
+    private int          agentBotMsgIdx  = -1;
+    private List<GameObject> _initChildren    = new List<GameObject>();
+    private List<GameObject> _toreachChildren = new List<GameObject>();
+
+    private const float ToggleDelay = 0.15f;
+    private const float ToolDelay   = 2.0f;
+
+    private static readonly string[] AdjustToolPaths =
+    {
+        "Tools/Cyberpunk Patch - Brightness & Floor",
+        "Tools/Neon Glow Fix",
+        "Tools/Neon Reset (Dark base + Glow)",
+        "Tools/Neon Signs & Text Fix",
+        "Tools/Setup Cyberpunk Scene V3",
+    };
+
+    private static readonly string[] AdjustToolMessages =
+    {
+        "Adjusting scene...",
+        "Adjusting lighting...",
+        "Rethinking the environment...",
+        "Fine-tuning the neon signs...",
+        "Applying final cyberpunk atmosphere...",
+    };
+
     // ── Styles (lazy-initialised) ────────────────────────────────────────────
     private GUIStyle bubbleStyleUser;
     private GUIStyle bubbleStyleBot;
@@ -106,6 +136,13 @@ public class AIChatWindow : EditorWindow
 
     private void OnEditorUpdate()
     {
+        // ── Agent phase pump ─────────────────────────────────────────────────
+        if (agentPhase != AgentPhase.None)
+        {
+            OnEditorAgentUpdate();
+            return;
+        }
+
         if (!isGenerating)
         {
             // Keep repainting while Unity loads asset preview thumbnails
@@ -134,6 +171,112 @@ public class AIChatWindow : EditorWindow
             isGenerating = false;
             ShowWeaponAssets();
         }
+    }
+
+    // ── Agent phase state machine ─────────────────────────────────────────────
+    private void OnEditorAgentUpdate()
+    {
+        double now = EditorApplication.timeSinceStartup;
+
+        if (agentPhase == AgentPhase.ChangingScene)
+        {
+            // ── Bootstrap: collect children & enable wireframe ────────────────
+            if (agentStepIdx == -1)
+            {
+                var initGO = GameObject.Find("init");
+                _initChildren.Clear();
+                if (initGO != null)
+                    foreach (Transform t in initGO.transform) _initChildren.Add(t.gameObject);
+
+                var toreachGO = GameObject.Find("toreach");
+                _toreachChildren.Clear();
+                if (toreachGO != null)
+                    foreach (Transform t in toreachGO.transform) _toreachChildren.Add(t.gameObject);
+
+                SetWireframeMode(true);
+                agentStepIdx = 0;
+                agentStepTime = now;
+                return;
+            }
+
+            // ── Interleave: each tick hides one init child AND shows one toreach child
+            // agentStepIdx counts how many pairs/singles have been processed.
+            // We continue until both lists are exhausted.
+            int maxSteps = Mathf.Max(_initChildren.Count, _toreachChildren.Count);
+            if (agentStepIdx < maxSteps)
+            {
+                if (now - agentStepTime >= ToggleDelay)
+                {
+                    if (agentStepIdx < _initChildren.Count)
+                        _initChildren[agentStepIdx].SetActive(false);
+
+                    if (agentStepIdx < _toreachChildren.Count)
+                        _toreachChildren[agentStepIdx].SetActive(true);
+
+                    agentStepIdx++;
+                    agentStepTime = now;
+                    Repaint();
+                }
+                return;
+            }
+
+            // ── All toggles done: restore shaded view, move to adjusting ──────
+            SetWireframeMode(false);
+            agentPhase   = AgentPhase.AdjustingScene;
+            agentStepIdx = 0;
+            agentStepTime = now;
+            Repaint();
+        }
+        else if (agentPhase == AgentPhase.AdjustingScene)
+        {
+            if (agentStepIdx < AdjustToolPaths.Length)
+            {
+                if (now - agentStepTime >= ToolDelay)
+                {
+                    AddBotMsg(AdjustToolMessages[agentStepIdx]);
+                    EditorApplication.ExecuteMenuItem(AdjustToolPaths[agentStepIdx]);
+                    agentStepIdx++;
+                    agentStepTime = now;
+                    Repaint();
+                }
+            }
+            else
+            {
+                if (now - agentStepTime >= ToolDelay)
+                {
+                    AddBotMsg("Your scene is ready!");
+                    agentPhase   = AgentPhase.Done;
+                    agentStepTime = now;
+                    Repaint();
+                }
+            }
+        }
+        else if (agentPhase == AgentPhase.Done)
+        {
+            agentPhase = AgentPhase.None;
+        }
+    }
+
+    private void UpdateBotMsg(string text)
+    {
+        if (agentBotMsgIdx >= 0 && agentBotMsgIdx < messages.Count)
+            messages[agentBotMsgIdx].Text = text;
+    }
+
+    private void AddBotMsg(string text)
+    {
+        messages.Add(new ChatMessage(text, isUser: false));
+        agentBotMsgIdx = messages.Count - 1;
+        scrollPos.y = float.MaxValue;
+    }
+
+    private static void SetWireframeMode(bool enable)
+    {
+        SceneView sv = SceneView.lastActiveSceneView;
+        if (sv == null) return;
+        sv.cameraMode = SceneView.GetBuiltinCameraMode(
+            enable ? DrawCameraMode.TexturedWire : DrawCameraMode.Textured);
+        sv.Repaint();
     }
 
     // ── Show 4 weapon assets as cards inside the chat window ───────────────────
@@ -236,7 +379,7 @@ public class AIChatWindow : EditorWindow
 
         // ── Header ──────────────────────────────────────────────────────────
         EditorGUILayout.Space(6);
-        GUILayout.Label("AI Scene Assistant  (stub)", EditorStyles.boldLabel);
+        GUILayout.Label("DAMN 3D Editor", EditorStyles.boldLabel);
         DrawHorizontalLine();
 
         // ── Chat history ─────────────────────────────────────────────────────
@@ -458,6 +601,19 @@ public class AIChatWindow : EditorWindow
             lastDotTime       = generateStartTime;
             dotCount          = 1;
             scrollPos.y       = float.MaxValue;
+            Repaint();
+            return;
+        }
+
+        // ── Agent mode: run the scene-change + tool sequence ─────────────────
+        if (currentMode == ChatMode.Agent)
+        {
+            messages.Add(new ChatMessage("Changing scene...", isUser: false));
+            agentBotMsgIdx = messages.Count - 1;
+            agentPhase     = AgentPhase.ChangingScene;
+            agentStepIdx   = -1;
+            agentStepTime  = EditorApplication.timeSinceStartup;
+            scrollPos.y    = float.MaxValue;
             Repaint();
             return;
         }
