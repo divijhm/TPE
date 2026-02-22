@@ -16,7 +16,7 @@ public static class RegionSelectionTool
 
     static void OnSceneGUI(SceneView sceneView)
     {
-        Debug.Log("Region tool active");
+        // Debug.Log("Region tool active");
 
         Event e = Event.current;
 
@@ -68,29 +68,28 @@ public static class RegionSelectionTool
 
     static void SelectObjects(SceneView sceneView)
     {
-        Rect rect = GetScreenRect(startPos, endPos);
-
-        List<GameObject> selected = new();
+        Debug.Log("Selecting objects via region");
 
         Camera cam = sceneView.camera;
+
+        Rect rect = new Rect(
+            Mathf.Min(startPos.x, endPos.x),
+            Mathf.Min(startPos.y, endPos.y),
+            Mathf.Abs(startPos.x - endPos.x),
+            Mathf.Abs(startPos.y - endPos.y)
+        );
+
+        List<GameObject> selected = new();
 
         foreach (GameObject obj in GameObject.FindObjectsOfType<GameObject>())
         {
             if (!obj.CompareTag("Selectable"))
                 continue;
 
-            Vector3 viewportPos =
-                cam.WorldToViewportPoint(obj.transform.position);
+            Vector2 guiPoint =
+                HandleUtility.WorldToGUIPoint(obj.transform.position);
 
-            if (viewportPos.z < 0)
-                continue;
-
-            Vector2 screenPos = new Vector2(
-                viewportPos.x * cam.pixelWidth,
-                (1 - viewportPos.y) * cam.pixelHeight
-            );
-
-            if (rect.Contains(screenPos))
+            if (rect.Contains(guiPoint))
                 selected.Add(obj);
         }
 
