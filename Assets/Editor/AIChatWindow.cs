@@ -61,6 +61,21 @@ public class AIChatWindow : EditorWindow
     private const string SCENE_B = "Assets/Scenes/DemoScene.unity";
     private bool isOnSceneA = true;
 
+    // ── Asset generation loading state ───────────────────────────────────────
+    private static readonly string[] WeaponPrefabPaths =
+    {
+        "Assets/Stylized Modular Weapons/Prefabs/Your Weapon Example 1.prefab",
+        "Assets/Stylized Modular Weapons/Prefabs/Your Weapon Example 2.prefab",
+        "Assets/Stylized Modular Weapons/Prefabs/Your Weapon Example 3.prefab",
+        "Assets/Stylized Modular Weapons/Prefabs/Your Weapon Example 4.prefab",
+    };
+
+    private bool   isGenerating     = false;
+    private double generateStartTime;
+    private int    generatingMsgIdx = -1;
+    private double lastDotTime;
+    private int    dotCount         = 1;
+
     // ── Styles (lazy-initialised) ────────────────────────────────────────────
     private GUIStyle bubbleStyleUser;
     private GUIStyle bubbleStyleBot;
@@ -83,6 +98,73 @@ public class AIChatWindow : EditorWindow
         var win = GetWindow<AIChatWindow>("AI Chat");
         win.minSize = new Vector2(420, 560);
         win.Show();
+    }
+
+    // ── Editor update subscription ──────────────────────────────────────────
+    private void OnEnable()  => EditorApplication.update += OnEditorUpdate;
+    private void OnDisable() => EditorApplication.update -= OnEditorUpdate;
+
+    private void OnEditorUpdate()
+    {
+        if (!isGenerating)
+        {
+            // Keep repainting while Unity loads asset preview thumbnails
+            if (AssetPreview.IsLoadingAssetPreviews()) Repaint();
+            return;
+        }
+
+        double now = EditorApplication.timeSinceStartup;
+
+        // Cycle loading dots every 0.4 s
+        if (now - lastDotTime >= 0.4)
+        {
+            lastDotTime = now;
+            dotCount = (dotCount % 3) + 1;
+            if (generatingMsgIdx >= 0 && generatingMsgIdx < messages.Count)
+            {
+                string dots = new string('.', dotCount);
+                messages[generatingMsgIdx].Text = "Generating assets" + dots;
+            }
+            Repaint();
+        }
+
+        // After 2 seconds, show weapon cards in the chat window
+        if (now - generateStartTime >= 2.0)
+        {
+            isGenerating = false;
+            ShowWeaponAssets();
+        }
+    }
+
+    // ── Show 4 weapon assets as cards inside the chat window ───────────────────
+    private void ShowWeaponAssets()
+    {
+        var cards = new List<AssetCard>();
+
+        foreach (var path in WeaponPrefabPaths)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null) continue;
+            // Kick off async preview generation
+            AssetPreview.GetAssetPreview(prefab);
+            cards.Add(new AssetCard(prefab.name, path));
+        }
+
+        string headerText = cards.Count > 0
+            ? $"Here are {cards.Count} weapon assets from your project:"
+            : "Asset generation complete, but no prefabs could be loaded.";
+
+        var resultMsg = new ChatMessage(headerText, isUser: false);
+        if (cards.Count > 0) resultMsg.AssetCards = cards;
+
+        if (generatingMsgIdx >= 0 && generatingMsgIdx < messages.Count)
+            messages[generatingMsgIdx] = resultMsg;
+        else
+            messages.Add(resultMsg);
+
+        generatingMsgIdx = -1;
+        scrollPos.y = float.MaxValue;
+        Repaint();
     }
 
     // ── Initialise styles once ───────────────────────────────────────────────
@@ -176,6 +258,81 @@ public class AIChatWindow : EditorWindow
                 GUILayout.Label(prefix + msg.Text, style, GUILayout.MaxWidth(position.width * 0.78f));
                 EditorGUILayout.EndHorizontal();
             }
+            else if (msg.AssetCards != null && msg.AssetCards.Count > 0)
+            {
+                // ── Asset card message ──────────────────────────────────────
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                GUILayout.Label("AI:  " + msg.Text, bubbleStyleBot);
+                EditorGUILayout.Space(4);
+
+                // Draw cards in a horizontal strip
+                EditorGUILayout.BeginHorizontal();
+                foreach (var card in msg.AssetCards)
+                {
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(88));
+
+                    // Thumbnail — clickable button that adds the prefab to the scene
+                    var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(card.Path);
+                    Texture2D thumb = prefab != null ? AssetPreview.GetAssetPreview(prefab) : null;
+                    if (thumb == null && prefab != null) thumb = AssetPreview.GetMiniThumbnail(prefab);
+
+                    Rect thumbRect = GUILayoutUtility.GetRect(80, 80,
+                        GUILayout.Width(80), GUILayout.Height(80));
+
+                    // Highlight on hover
+                    if (thumbRect.Contains(Event.current.mousePosition))
+                        EditorGUI.DrawRect(thumbRect, new Color(1f, 1f, 1f, 0.08f));
+
+                    if (thumb != null)
+                        GUI.DrawTexture(thumbRect, thumb, ScaleMode.ScaleToFit);
+                    else
+                        EditorGUI.DrawRect(thumbRect, new Color(0.25f, 0.25f, 0.25f, 0.8f));
+
+                    // Overlay "Added ✓" badge if already placed
+                    if (card.AddedToScene)
+                    {
+                        var badgeStyle = new GUIStyle(EditorStyles.miniLabel)
+                        {
+                            alignment = TextAnchor.MiddleCenter,
+                            fontStyle = FontStyle.Bold,
+                            fontSize  = 9
+                        };
+                        badgeStyle.normal.textColor = Color.white;
+                        var badgeRect = new Rect(thumbRect.x, thumbRect.yMax - 16, thumbRect.width, 16);
+                        EditorGUI.DrawRect(badgeRect, new Color(0.1f, 0.6f, 0.1f, 0.85f));
+                        GUI.Label(badgeRect, "Added ✓", badgeStyle);
+                    }
+
+                    // Detect click on thumbnail
+                    if (Event.current.type == EventType.MouseDown && thumbRect.Contains(Event.current.mousePosition))
+                    {
+                        Event.current.Use();
+                        if (prefab != null)
+                        {
+                            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                            // Place at a slight offset so multiple placements don't overlap
+                            instance.transform.position = Vector3.zero;
+                            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+                                UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+                            Selection.activeGameObject = instance;
+                            card.AddedToScene = true;
+                            Repaint();
+                        }
+                    }
+
+                    // Name label (word-wrap)
+                    var nameStyle = new GUIStyle(EditorStyles.miniLabel)
+                    { wordWrap = true, alignment = TextAnchor.MiddleCenter };
+                    GUILayout.Label(card.Name, nameStyle, GUILayout.Width(80));
+
+                    EditorGUILayout.EndVertical();
+                    GUILayout.Space(4);
+                }
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.Space(4);
+                EditorGUILayout.EndVertical();
+            }
             else
             {
                 EditorGUILayout.BeginHorizontal();
@@ -239,7 +396,15 @@ public class AIChatWindow : EditorWindow
         // Defer the state change to the end of the current event to keep
         // Layout / Repaint control counts identical within one frame.
         if (newMode != (int)currentMode)
-            EditorApplication.delayCall += () => { currentMode = (ChatMode)newMode; Repaint(); };
+            EditorApplication.delayCall += () =>
+            {
+                currentMode      = (ChatMode)newMode;
+                messages.Clear();
+                isGenerating     = false;
+                generatingMsgIdx = -1;
+                scrollPos        = Vector2.zero;
+                Repaint();
+            };
 
         GUILayout.Space(6);
 
@@ -282,6 +447,20 @@ public class AIChatWindow : EditorWindow
         messages.Add(new ChatMessage(text, isUser: true));
         inputText = "";
         GUI.FocusControl("ChatInput");
+
+        // ── Asset Generation mode: show animated loading, then spawn weapons ──
+        if (currentMode == ChatMode.AssetGeneration)
+        {
+            messages.Add(new ChatMessage("Generating assets.", isUser: false));
+            generatingMsgIdx  = messages.Count - 1;
+            isGenerating      = true;
+            generateStartTime = EditorApplication.timeSinceStartup;
+            lastDotTime       = generateStartTime;
+            dotCount          = 1;
+            scrollPos.y       = float.MaxValue;
+            Repaint();
+            return;
+        }
 
         // Switch scene on every send (stub behaviour — simulates AI taking action)
         string targetScene = isOnSceneA ? SCENE_B : SCENE_A;
@@ -335,11 +514,21 @@ public class AIChatWindow : EditorWindow
         EditorGUILayout.Space(4);
     }
 
-    // ── Data struct ───────────────────────────────────────────────────────────
-    private readonly struct ChatMessage
+    // ── Data types ────────────────────────────────────────────────────────────
+    private class AssetCard
     {
-        public readonly string Text;
-        public readonly bool   IsUser;
+        public string Name;
+        public string Path;
+        public bool   AddedToScene;
+        public AssetCard(string name, string path) { Name = name; Path = path; }
+    }
+
+    // Mutable wrapper so we can update loading messages in-place
+    private class ChatMessage
+    {
+        public string          Text;
+        public bool            IsUser;
+        public List<AssetCard> AssetCards; // non-null for asset result messages
         public ChatMessage(string text, bool isUser) { Text = text; IsUser = isUser; }
     }
 }
