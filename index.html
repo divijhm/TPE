@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FreeEdit — Edit Game Worlds Like Editing a Sentence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ═══ NAV ═══ -->
+  <nav id="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-mark"></span>
+        <span class="logo-text">FreeEdit</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#how">How</a></li>
+        <li><a href="#demo">Demo</a></li>
+        <li><a href="#pipeline">Pipeline</a></li>
+        <li><a href="#production">Production</a></li>
+      </ul>
+      <a href="api-key.html" class="nav-cta">Get Access</a>
+    </div>
+  </nav>
+
+  <!-- ═══ HERO ═══ -->
+  <section id="hero">
+    <div class="hero-bg">
+      <img src="images/hero-bg.jpg" alt="" class="hero-bg-img" />
+      <div class="hero-bg-overlay"></div>
+      <div class="hero-noise"></div>
+    </div>
+
+    <div class="hero-content">
+      <div class="hero-badge" data-animate="fade-up" data-delay="0">
+        <span class="badge-dot"></span>
+        <span>Unity · Unreal · 2026</span>
+      </div>
+      <h1 class="hero-title" data-animate="fade-up" data-delay="100">
+        Edit a game world<br />
+        <span class="title-accent">like editing a sentence.</span>
+      </h1>
+      <p class="hero-sub" data-animate="fade-up" data-delay="200">
+        Type. Watch your level transform.
+      </p>
+      <div class="hero-actions" data-animate="fade-up" data-delay="300">
+        <a href="api-key.html" class="btn-primary">
+          <span>Start Editing</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a href="#demo" class="btn-ghost">See it work</a>
+      </div>
+    </div>
+
+    <div class="hero-visual" data-animate="reveal-up" data-delay="400">
+      <div class="hero-frame">
+        <div class="frame-bar">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="frame-title">FreeEdit · Scene View</span>
+        </div>
+        <div class="frame-body">
+          <img src="images/hero-comparison.jpg" alt="Before/After Game World Edit" />
+          <div class="comparison-labels">
+            <span class="label-left">ORIGINAL</span>
+            <div class="divider-line"></div>
+            <span class="label-right">EDITED</span>
+          </div>
+        </div>
+        <div class="frame-prompt">
+          <span class="prompt-prefix">/edit</span>
+          <span class="prompt-text" id="typing-prompt"></span>
+          <span class="prompt-cursor">|</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="scroll-indicator">
+      <div class="scroll-line"></div>
+      <span>scroll</span>
+    </div>
+  </section>
+
+  <!-- ═══ TAGLINE STRIP ═══ -->
+  <section class="tagline-strip">
+    <div class="strip-inner">
+      <div class="strip-item">
+        <span class="strip-num">01</span>
+        <span>Type a command</span>
+      </div>
+      <div class="strip-sep"></div>
+      <div class="strip-item">
+        <span class="strip-num">02</span>
+        <span>AI parses intent</span>
+      </div>
+      <div class="strip-sep"></div>
+      <div class="strip-item">
+        <span class="strip-num">03</span>
+        <span>Scene updates safely</span>
+      </div>
+      <div class="strip-sep"></div>
+      <div class="strip-item">
+        <span class="strip-num">04</span>
+        <span>Ship to production</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ HOW IT WORKS ═══ -->
+  <section id="how" class="section-how">
+    <div class="section-label" style="text-align: center;">THE SOLUTION</div>
+    <h2 class="section-title" data-animate="fade-up" style="text-align: center; margin-bottom: 60px;">
+      Highlight an area, <span style="color: var(--cyan)">type the change</span>, accept the edit.
+    </h2>
+
+    <div class="solution-showcase" data-animate="reveal-up" data-delay="100">
+      <div class="solution-scene-large">
+        <img src="images/prompt-window.jpg" alt="FreeEdit Scene Editor" />
+      </div>
+      
+      <div class="solution-panel">
+        <div class="sp-header">
+           <span class="logo-mark small"></span>
+           <span class="sp-title">FreeEdit</span>
+        </div>
+        
+        <div class="sp-section">
+           <div class="sp-label">PROMPT</div>
+           <div class="sp-textbox">
+              Add neon signs to all storefronts, increase fog density, scatter rain particle emitters across the district
+           </div>
+           <button class="sp-generate-btn">
+              <span class="sp-star">✦</span> Generate Edit
+           </button>
+        </div>
+
+        <div class="sp-section" style="margin-top: 12px;">
+           <div class="sp-label-row">
+             <div class="sp-label">PROPOSED CHANGES</div>
+             <div class="sp-count">4 items</div>
+           </div>
+           <div class="sp-changes-list">
+              <div class="sp-change-item done">
+                 <span class="sp-check">✓</span>
+                 <span class="sp-change-text">[+] Neon_Sign_A × 8</span>
+              </div>
+              <div class="sp-change-item done">
+                 <span class="sp-check">✓</span>
+                 <span class="sp-change-text">[+] VolumetricFog (Density 0.82)</span>
+              </div>
+              <div class="sp-change-item done">
+                 <span class="sp-check">✓</span>
+                 <span class="sp-change-text">[+] RainParticle_v2</span>
+              </div>
+              <div class="sp-change-item warning">
+                 <span class="sp-check warn">!</span>
+                 <span class="sp-change-text">[!] Blocked Path Detected</span>
+                 <span class="sp-tag-warn">Blocking</span>
+              </div>
+           </div>
+           
+           <div class="sp-status-row">
+              <span class="sp-status-dot"></span> NavMesh Safely Preserved
+           </div>
+        </div>
+
+        <div class="sp-actions">
+           <button class="btn-ghost">Discard</button>
+           <button class="btn-primary">Accept Changes</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ DEMO / BEFORE-AFTER ═══ -->
+  <section id="demo" class="section-demo">
+    <div class="section-label">LIVE DEMO</div>
+    <h2 class="section-title" data-animate="fade-up">
+      One sentence.<br />A different world.
+    </h2>
+
+    <div class="demo-tabs">
+      <button class="tab active" data-scene="0">Cyberpunk Alley</button>
+      <button class="tab" data-scene="1">Gothic Fortress</button>
+      <button class="tab" data-scene="2">Editor View</button>
+    </div>
+
+    <div class="demo-scenes">
+      <!-- Scene 0 -->
+      <div class="demo-scene active" data-scene="0">
+        <div class="demo-frame">
+          <div class="demo-img-wrap">
+            <img src="images/hero-comparison.jpg" alt="Cyberpunk transformation" class="demo-img" />
+            <div class="demo-label-strip">
+              <span>Before</span>
+              <div class="demo-divider"></div>
+              <span>After</span>
+            </div>
+          </div>
+          <div class="demo-command">
+            <span class="cmd-slash">/</span>
+            <span class="cmd-text">Make this alley cyberpunk — neon signs, rain, purple haze</span>
+          </div>
+        </div>
+      </div>
+      <!-- Scene 1 -->
+      <div class="demo-scene" data-scene="1">
+        <div class="demo-frame">
+          <div class="demo-img-wrap">
+            <img src="images/gothic-transform.jpg" alt="Gothic transformation" class="demo-img" />
+            <div class="demo-label-strip">
+              <span>Before</span>
+              <div class="demo-divider"></div>
+              <span>After</span>
+            </div>
+          </div>
+          <div class="demo-command">
+            <span class="cmd-slash">/</span>
+            <span class="cmd-text">Transform this village into dark gothic horror at midnight</span>
+          </div>
+        </div>
+      </div>
+      <!-- Scene 2 -->
+      <div class="demo-scene" data-scene="2">
+        <div class="demo-frame">
+          <div class="demo-img-wrap">
+            <img src="images/product-demo.jpg" alt="Editor view with AI panel" class="demo-img" />
+          </div>
+          <div class="demo-command">
+            <span class="cmd-slash">/</span>
+            <span class="cmd-text">Add rain particles, increase fog, scatter neon signs</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ PIPELINE ═══ -->
+  <section id="pipeline" class="section-pipeline">
+    <div class="section-label">ARCHITECTURE</div>
+    <h2 class="section-title" data-animate="fade-up">
+      Intent → Safe edits.
+    </h2>
+    <p class="section-sub" data-animate="fade-up" data-delay="100">
+      Industry-standard assets. Production-safe output. FreeEdit adds the missing layer.
+    </p>
+
+    <div class="pipeline-visual" data-animate="reveal-up" data-delay="200">
+      <div class="pv-canvas">
+        <svg class="pv-svg" viewBox="0 0 1000 300" preserveAspectRatio="none">
+          <path class="pv-path" d="M 125 150 C 300 50, 450 150, 500 150 C 550 150, 700 250, 875 150" />
+          <path class="pv-path-2" d="M 125 150 C 300 250, 450 150, 500 150 C 550 150, 700 50, 875 150" />
+        </svg>
+        <div class="pv-nodes-layer">
+          <div class="pv-node">
+            <div class="pvn-header">
+              <span class="pvn-region">1</span>
+              <strong class="pvn-title">Asset Libraries</strong>
+            </div>
+            <p class="pvn-desc">Existing game assets — meshes, materials, particles</p>
+          </div>
+          <div class="pv-node">
+            <div class="pvn-header">
+              <span class="pvn-region">2</span>
+              <strong class="pvn-title">Game Engine</strong>
+            </div>
+            <p class="pvn-desc">Unity / Unreal — PBR pipelines, scene graphs</p>
+          </div>
+          <div class="pv-node highlight-pvn">
+            <div class="pvn-header">
+              <span class="pvn-region">⚡</span>
+              <strong class="pvn-title">FreeEdit Layer</strong>
+            </div>
+            <p class="pvn-desc">Natural language → validated, scoped scene mutations</p>
+          </div>
+          <div class="pv-node">
+            <div class="pvn-header">
+              <span class="pvn-region">4</span>
+              <strong class="pvn-title">Playable Scene</strong>
+            </div>
+            <p class="pvn-desc">Collision-clean, NavMesh-tagged, export-ready</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </section>
+
+  <!-- ═══ PRODUCTION ═══ -->
+  <section id="production" class="section-production">
+    <div class="prod-wrap">
+      <div class="prod-left" data-animate="fade-up">
+        <div class="section-label">PRODUCTION READY</div>
+        <h2 class="prod-title">Ships clean.<br />Every time.</h2>
+        <ul class="prod-list">
+          <li>
+            <span class="prod-check">✓</span>
+            <div>
+              <strong>Existing Asset Libraries</strong>
+              <p>Works with what you already have — no re-import.</p>
+            </div>
+          </li>
+          <li>
+            <span class="prod-check">✓</span>
+            <div>
+              <strong>Standard Pipeline Output</strong>
+              <p>Output is identical to hand-placed work.</p>
+            </div>
+          </li>
+          <li>
+            <span class="prod-check">✓</span>
+            <div>
+              <strong>Editor-Time Safety</strong>
+              <p>Rollback, undo, and scoped changes only.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="prod-right" data-animate="reveal-up" data-delay="150">
+        <div class="prod-glow-bg"></div>
+        <div class="prod-checklist">
+          <div class="pcl-header">Production Readiness</div>
+          <div class="pcl-items">
+            <div class="pcl-item" data-order="0">
+              <span class="pcl-icon done">✓</span>
+              <span class="pcl-label">Asset Library</span>
+              <div class="pcl-bar"><div class="pcl-fill" style="--w:100%"></div></div>
+              <span class="pcl-pct">100%</span>
+            </div>
+            <div class="pcl-item" data-order="1">
+              <span class="pcl-icon done">✓</span>
+              <span class="pcl-label">Collisions</span>
+              <div class="pcl-bar"><div class="pcl-fill" style="--w:100%"></div></div>
+              <span class="pcl-pct">100%</span>
+            </div>
+            <div class="pcl-item" data-order="2">
+              <span class="pcl-icon done">✓</span>
+              <span class="pcl-label">NavMesh Tags</span>
+              <div class="pcl-bar"><div class="pcl-fill" style="--w:100%"></div></div>
+              <span class="pcl-pct">100%</span>
+            </div>
+            <div class="pcl-item" data-order="3">
+              <span class="pcl-icon done">✓</span>
+              <span class="pcl-label">Export</span>
+              <div class="pcl-bar"><div class="pcl-fill" style="--w:100%"></div></div>
+              <span class="pcl-pct">100%</span>
+            </div>
+          </div>
+          <div class="pcl-footer">
+            <span class="pcl-status">● All systems validated</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CTA ═══ -->
+  <section id="cta" class="section-cta">
+    <div class="cta-glow"></div>
+    <div class="cta-inner">
+      <div class="section-label">GET STARTED</div>
+      <h2 class="cta-title" data-animate="fade-up">
+        The missing layer<br />
+        <span class="title-accent">is now yours.</span>
+      </h2>
+      <p class="cta-sub" data-animate="fade-up" data-delay="100">
+        Sign in, grab your API key, and start transforming worlds in minutes.
+      </p>
+      <a href="api-key.html" class="btn-primary large" data-animate="fade-up" data-delay="200">
+        <span>Get your API Key</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-mark"></span>
+        <span class="logo-text">FreeEdit</span>
+      </a>
+      <p class="footer-copy">© 2026 FreeEdit</p>
+      <a href="api-key.html" class="footer-link">API Key →</a>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

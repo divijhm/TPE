@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FreeEdit — Get your API Key</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/api-key.css" />
+</head>
+<body class="api-page">
+
+  <!-- ─── NAV ─── -->
+  <nav id="nav" class="scrolled">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-mark"></span>
+        <span class="logo-text">FreeEdit</span>
+      </a>
+      <a href="index.html" class="nav-back">← Back to home</a>
+    </div>
+  </nav>
+
+  <!-- ─── AMBIENT BACKGROUND ─── -->
+  <div class="api-bg">
+    <div class="api-glow api-glow-1"></div>
+    <div class="api-glow api-glow-2"></div>
+    <div class="api-grid"></div>
+    <canvas id="particle-canvas"></canvas>
+  </div>
+
+  <!-- ─── MAIN ─── -->
+  <main class="api-main">
+    <div class="api-card-wrap">
+
+      <!-- Headline -->
+      <h1 class="api-headline" data-anim="up" data-anim-delay="80">
+        Activate your plugin.
+      </h1>
+      <p class="api-sub" data-anim="up" data-anim-delay="160">
+        Sign in to generate the API key that unlocks FreeEdit inside your Unity project.
+      </p>
+
+      <!-- Card -->
+      <form class="api-card" data-anim="up" data-anim-delay="240" autocomplete="off" onsubmit="return false;">
+
+        <!-- Credentials (shown before auth) -->
+        <div class="api-auth" id="apiAuth">
+
+          <!-- Email -->
+          <div class="api-field">
+            <label class="api-label">
+              <span class="api-label-text">Email</span>
+              <span class="api-label-hint">studio account</span>
+            </label>
+            <div class="api-input-wrap" id="emailWrap">
+              <span class="api-input-icon">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+                  <path d="M2.5 4.5l5.5 4 5.5-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <input
+                id="emailInput"
+                class="api-input"
+                type="email"
+                placeholder="you@studio.com"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+          </div>
+
+          <!-- Password -->
+          <div class="api-field">
+            <label class="api-label">
+              <span class="api-label-text">Password</span>
+              <span class="api-label-hint">dummy auth · any value</span>
+            </label>
+            <div class="api-input-wrap" id="passwordWrap">
+              <span class="api-input-icon">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+                  <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                </svg>
+              </span>
+              <input
+                id="passwordInput"
+                class="api-input"
+                type="password"
+                placeholder="••••••••"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button class="api-toggle-vis" id="toggleVis" type="button" title="Show/hide password">
+                <svg id="eye-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 3C4.5 3 1.5 8 1.5 8s3 5 6.5 5 6.5-5 6.5-5-3-5-6.5-5z" stroke="currentColor" stroke-width="1.3"/>
+                  <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Status indicator -->
+          <div class="api-status" id="apiStatus">
+            <span class="api-status-dot" id="statusDot"></span>
+            <span class="api-status-text" id="statusText">Enter credentials to sign in</span>
+          </div>
+
+          <!-- Sign in button -->
+          <button class="api-connect-btn" id="signinBtn" type="button">
+            <span id="btnLabel">Sign in &amp; generate key</span>
+            <span class="btn-arrow" id="btnArrow">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="btn-loader" id="btnLoader" style="display:none">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="spin-icon">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" stroke-dasharray="28" stroke-dashoffset="10"/>
+              </svg>
+            </span>
+          </button>
+
+        </div>
+
+        <!-- Post-auth: generated key block -->
+        <div class="api-keygen" id="apiKeygen" style="display:none">
+
+          <!-- Success State -->
+          <div class="api-success" id="apiSuccess">
+            <div class="success-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M5 12l5 5L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="success-info">
+              <span class="success-title">Authenticated</span>
+              <span class="success-sub" id="successSub">Key issued — keep it safe</span>
+            </div>
+            <button class="success-change" id="changeBtn" type="button">Sign out</button>
+          </div>
+
+          <!-- Generated key display -->
+          <div class="api-field api-keygen-field">
+            <label class="api-label">
+              <span class="api-label-text">Your API Key</span>
+              <span class="api-label-hint">paste into FreeEdit chatbot in Unity</span>
+            </label>
+            <div class="api-keydisplay" id="keyDisplay">
+              <span class="api-input-icon">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="6" cy="10" r="3" stroke="currentColor" stroke-width="1.3"/>
+                  <path d="M8 8l6-6M12 4l2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                </svg>
+              </span>
+              <span class="api-key-value" id="keyValue">fe-xxxx-xxxx-xxxx-xxxxxxxxxxxx</span>
+              <button class="api-copy-btn" id="copyBtn" type="button" title="Copy key to clipboard">
+                <span class="api-copy-label" id="copyLabel">Copy</span>
+                <svg class="api-copy-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <rect x="5" y="5" width="8" height="9" rx="1.4" stroke="currentColor" stroke-width="1.3"/>
+                  <path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <p class="api-keygen-hint">
+              Open Unity → <span class="kh-em">FreeEdit</span> window → paste key → press Connect
+            </p>
+          </div>
+
+          <!-- Stats row -->
+          <div class="api-stats" id="apiStats">
+            <div class="api-stat">
+              <span class="stat-val">90 days</span>
+              <span class="stat-label">Valid for</span>
+            </div>
+            <div class="stat-sep"></div>
+            <div class="api-stat">
+              <span class="stat-val">Unity · Unreal</span>
+              <span class="stat-label">Scope</span>
+            </div>
+            <div class="stat-sep"></div>
+            <div class="api-stat">
+              <span class="stat-val">1 device</span>
+              <span class="stat-label">Seats</span>
+            </div>
+          </div>
+
+        </div>
+
+      </form>
+      <!-- /api-card -->
+
+      <!-- Help -->
+      <p class="api-help" data-anim="up" data-anim-delay="360">
+        Don't have an account? <a href="#" class="api-link">Request early access →</a>
+      </p>
+
+      <!-- Feature bullets -->
+      <div class="api-features" data-anim="up" data-anim-delay="440">
+        <div class="af-item">
+          <span class="af-dot"></span>
+          <span>256-bit encrypted</span>
+        </div>
+        <div class="af-item">
+          <span class="af-dot"></span>
+          <span>Never stored server-side</span>
+        </div>
+        <div class="af-item">
+          <span class="af-dot"></span>
+          <span>Revoke anytime</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Side visual (desktop) -->
+    <div class="api-visual" data-anim="right" data-anim-delay="200">
+      <div class="api-visual-frame">
+        <div class="avf-bar">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="avf-title">Install FreeEdit · Unity</span>
+          <span class="avf-status">● 5 steps</span>
+        </div>
+        <div class="avf-body">
+          <!-- Step-by-step install walkthrough -->
+          <ol class="avf-steps" id="avfSteps">
+            <li class="avf-step" data-step="1">
+              <div class="avf-step-marker">
+                <span class="avf-step-digit">1</span>
+                <svg class="avf-step-check" viewBox="0 0 16 16" fill="none">
+                  <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="avf-step-content">
+                <div class="avf-step-title">Open your Unity project</div>
+                <div class="avf-step-detail">Unity 2021.3 LTS or later</div>
+              </div>
+            </li>
+            <li class="avf-step" data-step="2">
+              <div class="avf-step-marker">
+                <span class="avf-step-digit">2</span>
+                <svg class="avf-step-check" viewBox="0 0 16 16" fill="none">
+                  <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="avf-step-content">
+                <div class="avf-step-title">Window → Package Manager</div>
+                <div class="avf-step-detail">Top menu bar in the editor</div>
+              </div>
+            </li>
+            <li class="avf-step" data-step="3">
+              <div class="avf-step-marker">
+                <span class="avf-step-digit">3</span>
+                <svg class="avf-step-check" viewBox="0 0 16 16" fill="none">
+                  <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="avf-step-content">
+                <div class="avf-step-title">+ &nbsp;Add package from git URL</div>
+                <code class="avf-step-code">https://github.com/divijhm/ai-chat-upm-package.git</code>
+              </div>
+            </li>
+            <li class="avf-step" data-step="4">
+              <div class="avf-step-marker">
+                <span class="avf-step-digit">4</span>
+                <svg class="avf-step-check" viewBox="0 0 16 16" fill="none">
+                  <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="avf-step-content">
+                <div class="avf-step-title">Open the FreeEdit chat window</div>
+                <div class="avf-step-detail">Window → FreeEdit → Chat</div>
+              </div>
+            </li>
+            <li class="avf-step" data-step="5">
+              <div class="avf-step-marker">
+                <span class="avf-step-digit">5</span>
+                <svg class="avf-step-check" viewBox="0 0 16 16" fill="none">
+                  <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="avf-step-content">
+                <div class="avf-step-title">Paste your API key &amp; connect</div>
+                <div class="avf-step-detail">Ready to edit your world</div>
+              </div>
+            </li>
+          </ol>
+        </div>
+        <div class="avf-log">
+          <div class="log-line"><span class="log-time">00:00:01</span><span class="log-msg">Resolved package from git</span></div>
+          <div class="log-line"><span class="log-time">00:00:02</span><span class="log-msg success">FreeEdit installed ✓</span></div>
+          <div class="log-line anim-line"><span class="log-time">00:00:03</span><span class="log-msg cyan" id="avfLogStatus">Awaiting API key_</span></div>
+        </div>
+      </div>
+
+      <!-- Floating prompt -->
+      <div class="api-floating-prompt">
+        <span class="fp-slash">/</span>
+        <span class="fp-text" id="apiTyping"></span>
+        <span class="fp-cursor">|</span>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/api-key.js"></script>
+</body>
+</html>
