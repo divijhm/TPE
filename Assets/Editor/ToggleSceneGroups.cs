@@ -19,6 +19,14 @@ public static class ToggleSceneGroups
         ToggleChildren(root, "toreach");
     }
 
+    [MenuItem("Tools/Toggle Visibility - envscene")]
+    private static void ToggleEnvScene()
+    {
+        var root = GameObject.Find("envscene");
+        if (root == null) { Debug.LogWarning("[ToggleSceneGroups] Could not find GameObject named 'envscene'."); return; }
+        ToggleChildren(root, "envscene");
+    }
+
     private static void ToggleChildren(GameObject root, string label)
     {
         int count = root.transform.childCount;

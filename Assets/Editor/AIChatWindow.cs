@@ -14,7 +14,7 @@ using System.Threading;
 public class AIChatWindow : EditorWindow
 {
     private const string ApiKeyPrefKey = "AIChatWindow.ApiKey";
-    private const bool DebugPasteLogs = false;
+    private const bool DebugPasteLogs = true;
 
     // ── Chat mode ────────────────────────────────────────────────────────────
     private enum ChatMode { AssetGeneration, Agent, Selection }
@@ -138,6 +138,13 @@ public class AIChatWindow : EditorWindow
         var win = GetWindow<AIChatWindow>("AI Chat");
         win.minSize = new Vector2(420, 560);
         win.Show();
+    }
+
+    [MenuItem("AI Chat/Clear API Key")]
+    public static void ClearApiKey()
+    {
+        EditorPrefs.DeleteKey(ApiKeyPrefKey);
+        Debug.Log("API key cleared. Restart the window to test the input screen.");
     }
 
     // ── Editor update subscription ──────────────────────────────────────────
