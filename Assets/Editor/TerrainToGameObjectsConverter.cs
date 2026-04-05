@@ -53,6 +53,7 @@ public static class TerrainToGameObjectsConverter
         int totalTrees = 0;
         int totalDetails = 0;
         int skippedDetailLayers = 0;
+        int cappedTerrains = 0;
 
         Undo.IncrementCurrentGroup();
         int undoGroup = Undo.GetCurrentGroup();
@@ -68,7 +69,12 @@ public static class TerrainToGameObjectsConverter
             Transform root = CreateRoot(terrain, clearTerrainData);
 
             totalTrees += ConvertTrees(terrain, root);
-            totalDetails += ConvertMeshDetails(terrain, root, ref skippedDetailLayers);
+            bool detailsWereCapped = false;
+            totalDetails += ConvertMeshDetails(terrain, root, ref skippedDetailLayers, ref detailsWereCapped);
+            if (detailsWereCapped)
+            {
+                cappedTerrains++;
+            }
 
             if (clearTerrainData)
             {
@@ -92,6 +98,11 @@ public static class TerrainToGameObjectsConverter
             "Converted Mesh Details: " + totalDetails + "\n" +
             "Skipped Texture-Only Detail Layers: " + skippedDetailLayers + "\n\n" +
             "Note: Grass/texture detail layers are not regular prefabs, so they cannot be converted to editable GameObjects by default.";
+
+        if (cappedTerrains > 0)
+        {
+            message += "\n\nDetail conversion hit the per-terrain cap on " + cappedTerrains + " terrain(s). Converted details were distributed across each terrain to preserve overall coverage.";
+        }
 
         if (clearTerrainData)
         {
@@ -177,7 +188,7 @@ public static class TerrainToGameObjectsConverter
         return created;
     }
 
-    private static int ConvertMeshDetails(Terrain terrain, Transform root, ref int skippedLayers)
+    private static int ConvertMeshDetails(Terrain terrain, Transform root, ref int skippedLayers, ref bool wasCapped)
     {
         TerrainData data = terrain.terrainData;
         DetailPrototype[] detailPrototypes = data.detailPrototypes;
@@ -192,6 +203,38 @@ public static class TerrainToGameObjectsConverter
         float cellSizeX = data.size.x / detailWidth;
         float cellSizeZ = data.size.z / detailHeight;
 
+        int totalRequested = 0;
+        for (int layer = 0; layer < detailPrototypes.Length; layer++)
+        {
+            DetailPrototype prototype = detailPrototypes[layer];
+            if (prototype.prototype == null)
+            {
+                continue;
+            }
+
+            int[,] map = data.GetDetailLayer(0, 0, detailWidth, detailHeight, layer);
+            for (int y = 0; y < detailHeight; y++)
+            {
+                for (int x = 0; x < detailWidth; x++)
+                {
+                    totalRequested += GetDetailDensity(map, x, y);
+                }
+            }
+        }
+
+        float keepRatio = 1f;
+        if (totalRequested > MaxDetailObjectsPerTerrain)
+        {
+            keepRatio = (float)MaxDetailObjectsPerTerrain / totalRequested;
+            wasCapped = true;
+            Debug.LogWarning(
+                "Detail conversion requested " + totalRequested +
+                " objects on terrain " + terrain.name +
+                ", exceeding cap " + MaxDetailObjectsPerTerrain +
+                ". Applying distributed downsampling (ratio=" + keepRatio.ToString("F3") + ").");
+        }
+
+        System.Random prng = new System.Random(terrain.GetInstanceID());
         int created = 0;
 
         for (int layer = 0; layer < detailPrototypes.Length; layer++)
@@ -211,20 +254,22 @@ public static class TerrainToGameObjectsConverter
             {
                 for (int x = 0; x < detailWidth; x++)
                 {
-                    int density = map[y, x];
-                    for (int i = 0; i < density; i++)
+                    int density = GetDetailDensity(map, x, y);
+                    int targetCount = GetScaledCount(density, keepRatio, prng);
+
+                    for (int i = 0; i < targetCount; i++)
                     {
                         if (created >= MaxDetailObjectsPerTerrain)
                         {
-                            Debug.LogWarning("Detail conversion capped at " + MaxDetailObjectsPerTerrain + " objects for terrain " + terrain.name + ".");
+                            wasCapped = true;
                             return created;
                         }
 
-                        float px = terrain.transform.position.x + (x + UnityEngine.Random.value) * cellSizeX;
-                        float pz = terrain.transform.position.z + (y + UnityEngine.Random.value) * cellSizeZ;
+                        float px = terrain.transform.position.x + (x + (float)prng.NextDouble()) * cellSizeX;
+                        float pz = terrain.transform.position.z + (y + (float)prng.NextDouble()) * cellSizeZ;
                         float py = terrain.SampleHeight(new Vector3(px, 0f, pz)) + terrain.transform.position.y;
 
-                        Quaternion rot = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+                        Quaternion rot = Quaternion.Euler(0f, RandomRange(prng, 0f, 360f), 0f);
 
                         GameObject instance = PrefabUtility.InstantiatePrefab(detailPrefab, terrain.gameObject.scene) as GameObject;
                         if (instance == null)
@@ -235,8 +280,8 @@ public static class TerrainToGameObjectsConverter
                         Undo.RegisterCreatedObjectUndo(instance, "Create Detail Instance");
                         instance.transform.SetPositionAndRotation(new Vector3(px, py, pz), rot);
 
-                        float width = UnityEngine.Random.Range(prototype.minWidth, prototype.maxWidth);
-                        float height = UnityEngine.Random.Range(prototype.minHeight, prototype.maxHeight);
+                        float width = RandomRange(prng, prototype.minWidth, prototype.maxWidth);
+                        float height = RandomRange(prng, prototype.minHeight, prototype.maxHeight);
                         instance.transform.localScale = new Vector3(width, height, width);
 
                         instance.transform.SetParent(root, true);
@@ -247,6 +292,58 @@ public static class TerrainToGameObjectsConverter
         }
 
         return created;
+    }
+
+    private static int GetDetailDensity(int[,] map, int x, int y)
+    {
+        int firstDim = map.GetLength(0);
+        int secondDim = map.GetLength(1);
+
+        if (x < firstDim && y < secondDim)
+        {
+            return map[x, y];
+        }
+
+        if (y < firstDim && x < secondDim)
+        {
+            return map[y, x];
+        }
+
+        return 0;
+    }
+
+    private static int GetScaledCount(int originalDensity, float keepRatio, System.Random prng)
+    {
+        if (originalDensity <= 0)
+        {
+            return 0;
+        }
+
+        if (keepRatio >= 1f)
+        {
+            return originalDensity;
+        }
+
+        float scaled = originalDensity * keepRatio;
+        int count = Mathf.FloorToInt(scaled);
+        float remainder = scaled - count;
+
+        if (remainder > 0f && prng.NextDouble() < remainder)
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    private static float RandomRange(System.Random prng, float min, float max)
+    {
+        if (max <= min)
+        {
+            return min;
+        }
+
+        return min + (float)prng.NextDouble() * (max - min);
     }
 
     private static void ClearTerrainScatter(Terrain terrain)
