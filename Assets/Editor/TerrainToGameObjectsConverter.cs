@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -6,6 +7,22 @@ using UnityEngine;
 public static class TerrainToGameObjectsConverter
 {
     private const int MaxDetailObjectsPerTerrain = 15000;
+    private const float RockDetailDensityMultiplier = 0.2f;
+    private const float WaterSurfacePadding = 0.05f;
+
+    private static readonly string[] RockKeywords =
+    {
+        "rock",
+        "stone",
+        "pebble",
+        "boulder"
+    };
+
+    private struct WaterSurface
+    {
+        public Bounds Bounds;
+        public float SurfaceY;
+    }
 
     [MenuItem("Tools/Terrain/Convert Trees + Mesh Details To GameObjects (Keep Terrain Data)")]
     private static void ConvertKeepTerrain()
@@ -202,6 +219,7 @@ public static class TerrainToGameObjectsConverter
         int detailHeight = data.detailHeight;
         float cellSizeX = data.size.x / detailWidth;
         float cellSizeZ = data.size.z / detailHeight;
+        List<WaterSurface> waterSurfaces = GatherWaterSurfaces(terrain.gameObject.scene);
 
         int totalRequested = 0;
         for (int layer = 0; layer < detailPrototypes.Length; layer++)
@@ -217,7 +235,7 @@ public static class TerrainToGameObjectsConverter
             {
                 for (int x = 0; x < detailWidth; x++)
                 {
-                    totalRequested += GetDetailDensity(map, x, y);
+                    totalRequested += map[y, x];
                 }
             }
         }
@@ -254,8 +272,9 @@ public static class TerrainToGameObjectsConverter
             {
                 for (int x = 0; x < detailWidth; x++)
                 {
-                    int density = GetDetailDensity(map, x, y);
-                    int targetCount = GetScaledCount(density, keepRatio, prng);
+                    int density = map[y, x];
+                    float layerRatio = keepRatio * GetPrototypeDensityMultiplier(detailPrefab);
+                    int targetCount = GetScaledCount(density, layerRatio, prng);
 
                     for (int i = 0; i < targetCount; i++)
                     {
@@ -268,6 +287,11 @@ public static class TerrainToGameObjectsConverter
                         float px = terrain.transform.position.x + (x + (float)prng.NextDouble()) * cellSizeX;
                         float pz = terrain.transform.position.z + (y + (float)prng.NextDouble()) * cellSizeZ;
                         float py = terrain.SampleHeight(new Vector3(px, 0f, pz)) + terrain.transform.position.y;
+
+                        if (IsInsideWaterSurface(px, py, pz, waterSurfaces))
+                        {
+                            continue;
+                        }
 
                         Quaternion rot = Quaternion.Euler(0f, RandomRange(prng, 0f, 360f), 0f);
 
@@ -294,22 +318,18 @@ public static class TerrainToGameObjectsConverter
         return created;
     }
 
-    private static int GetDetailDensity(int[,] map, int x, int y)
+    private static float GetPrototypeDensityMultiplier(GameObject detailPrefab)
     {
-        int firstDim = map.GetLength(0);
-        int secondDim = map.GetLength(1);
-
-        if (x < firstDim && y < secondDim)
+        string prefabName = detailPrefab != null ? detailPrefab.name : string.Empty;
+        for (int i = 0; i < RockKeywords.Length; i++)
         {
-            return map[x, y];
+            if (prefabName.IndexOf(RockKeywords[i], StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return RockDetailDensityMultiplier;
+            }
         }
 
-        if (y < firstDim && x < secondDim)
-        {
-            return map[y, x];
-        }
-
-        return 0;
+        return 1f;
     }
 
     private static int GetScaledCount(int originalDensity, float keepRatio, System.Random prng)
@@ -344,6 +364,66 @@ public static class TerrainToGameObjectsConverter
         }
 
         return min + (float)prng.NextDouble() * (max - min);
+    }
+
+    private static List<WaterSurface> GatherWaterSurfaces(UnityEngine.SceneManagement.Scene scene)
+    {
+        var waters = new List<WaterSurface>();
+
+        GameObject[] sceneObjects = scene.GetRootGameObjects();
+        for (int i = 0; i < sceneObjects.Length; i++)
+        {
+            Renderer[] renderers = sceneObjects[i].GetComponentsInChildren<Renderer>(true);
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                Renderer renderer = renderers[r];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                GameObject go = renderer.gameObject;
+                bool taggedWater = go.CompareTag("Water");
+                bool nameLooksLikeWater = go.name.IndexOf("water", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!taggedWater && !nameLooksLikeWater)
+                {
+                    continue;
+                }
+
+                Bounds b = renderer.bounds;
+                waters.Add(new WaterSurface
+                {
+                    Bounds = b,
+                    SurfaceY = b.max.y
+                });
+            }
+        }
+
+        return waters;
+    }
+
+    private static bool IsInsideWaterSurface(float x, float y, float z, List<WaterSurface> waters)
+    {
+        for (int i = 0; i < waters.Count; i++)
+        {
+            WaterSurface water = waters[i];
+            if (x < water.Bounds.min.x || x > water.Bounds.max.x)
+            {
+                continue;
+            }
+
+            if (z < water.Bounds.min.z || z > water.Bounds.max.z)
+            {
+                continue;
+            }
+
+            if (y <= water.SurfaceY + WaterSurfacePadding)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void ClearTerrainScatter(Terrain terrain)
