@@ -9,6 +9,8 @@ using System.Collections.Generic;
 /// </summary>
 public class AIChatWindow : EditorWindow
 {
+    private const string ApiKeyPrefKey = "AIChatWindow.ApiKey";
+
     // ── Chat mode ────────────────────────────────────────────────────────────
     private enum ChatMode { AssetGeneration, Agent, Selection }
 
@@ -115,6 +117,8 @@ public class AIChatWindow : EditorWindow
     private GUIStyle tierPremiumStyle;
     private GUIStyle modeBadgeStyle;
     private bool stylesInitialised;
+    private string apiKeyInput = "";
+    private string apiKeyError = "";
 
     // ── Tier colour map ──────────────────────────────────────────────────────
     private static readonly Color ColBudget   = new Color(0.35f, 0.75f, 0.35f);
@@ -131,7 +135,12 @@ public class AIChatWindow : EditorWindow
     }
 
     // ── Editor update subscription ──────────────────────────────────────────
-    private void OnEnable()  => EditorApplication.update += OnEditorUpdate;
+    private void OnEnable()
+    {
+        apiKeyInput = EditorPrefs.GetString(ApiKeyPrefKey, "");
+        EditorApplication.update += OnEditorUpdate;
+    }
+
     private void OnDisable() => EditorApplication.update -= OnEditorUpdate;
 
     private void OnEditorUpdate()
@@ -375,6 +384,13 @@ public class AIChatWindow : EditorWindow
     private void OnGUI()
     {
         InitStyles();
+
+        if (!HasApiKey())
+        {
+            DrawApiKeyGate();
+            return;
+        }
+
         Color prevBg = GUI.backgroundColor;
 
         // ── Header ──────────────────────────────────────────────────────────
@@ -523,6 +539,63 @@ public class AIChatWindow : EditorWindow
             SendMessage(inputText.Trim());
             if (ctrlEnter) Event.current.Use();
         }
+    }
+
+    private bool HasApiKey()
+    {
+        return !string.IsNullOrWhiteSpace(EditorPrefs.GetString(ApiKeyPrefKey, ""));
+    }
+
+    private void DrawApiKeyGate()
+    {
+        EditorGUILayout.Space(8);
+        GUILayout.Label("DAMN 3D Editor", EditorStyles.boldLabel);
+        DrawHorizontalLine();
+
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        GUILayout.Label("API Key Required", EditorStyles.boldLabel);
+        GUILayout.Label("Enter your API key to unlock the editor window.", EditorStyles.wordWrappedMiniLabel);
+
+        EditorGUILayout.Space(6);
+        GUI.SetNextControlName("ApiKeyInput");
+        apiKeyInput = EditorGUILayout.PasswordField("API Key", apiKeyInput);
+
+        if (!string.IsNullOrEmpty(apiKeyError))
+            EditorGUILayout.HelpBox(apiKeyError, MessageType.Error);
+
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+
+        if (GUILayout.Button("Save Key", GUILayout.Width(100), GUILayout.Height(24)))
+        {
+            SaveApiKey();
+        }
+
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndVertical();
+
+        if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return)
+        {
+            SaveApiKey();
+            Event.current.Use();
+        }
+    }
+
+    private void SaveApiKey()
+    {
+        string trimmed = (apiKeyInput ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            apiKeyError = "API key cannot be empty.";
+            Repaint();
+            return;
+        }
+
+        EditorPrefs.SetString(ApiKeyPrefKey, trimmed);
+        apiKeyInput = trimmed;
+        apiKeyError = "";
+        GUI.FocusControl(null);
+        Repaint();
     }
 
     // ── Mode selector UI ─────────────────────────────────────────────────────

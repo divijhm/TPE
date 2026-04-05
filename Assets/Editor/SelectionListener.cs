@@ -50,11 +50,5 @@ public static class SelectionListener
     {
         if (Selection.gameObjects.Length == 0)
             return;
-
-        var context = SelectionContextBuilder.Build();
-
-        Debug.Log("Selection attached to chat");
-
-        ChatWindow.AttachSelection(context);
     }
 }
