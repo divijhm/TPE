@@ -607,7 +607,7 @@ public partial class AIChatWindow : EditorWindow
             primaryDelay: ScaledEnvDelay(0.0009f),
             secondaryObjects: trees,
             secondaryBatchSize: 10,
-            secondaryDelay: ScaledEnvDelay(0.006f));
+            secondaryDelay: ScaledEnvDelay(0.001f));
         AddRevealStage("Adding rocks...", rocks, batchSize: 2, delay: ScaledEnvDelay(0.01f));
         AddRevealStage("Adding flowers...", flowers, batchSize: 4, delay: ScaledEnvDelay(0.01f));
         AddRevealStage("Applying finishing touches...", remaining, batchSize: 5, delay: ScaledEnvDelay(0.01f));
