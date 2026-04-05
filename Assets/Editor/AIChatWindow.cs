@@ -507,14 +507,14 @@ public partial class AIChatWindow : EditorWindow
             var go = allObjects[i];
             if (go == null) continue;
 
+            // Reset reveal targets so objects can be rebuilt one by one.
+            go.SetActive(false);
+
             if (go.GetComponent<Light>() != null)
             {
                 lights.Add(go);
                 continue;
             }
-
-            // Reset reveal targets so objects can be rebuilt one by one.
-            go.SetActive(false);
 
             string n = go.name.ToLowerInvariant();
             bool isGrass = ContainsAny(n, EnvGrassKeywords);
@@ -553,22 +553,19 @@ public partial class AIChatWindow : EditorWindow
             }
         }
 
-        // Keep light visible from the beginning so scene buildup is never dark.
-        for (int i = 0; i < lights.Count; i++)
-            ActivateWithParents(lights[i], envRoot.transform);
-
         // Water must appear at the very end as part of finishing touches.
         remaining.AddRange(water);
 
-        AddRevealStage("Populating terrain...", terrain, batchSize: 1, delay: ScaledEnvDelay(0.05f));
+        AddRevealStage("Populating terrain...", terrain, batchSize: 1, delay: ScaledEnvDelay(0.12f));
+        AddRevealStage("Setting up lighting...", lights, batchSize: 1, delay: ScaledEnvDelay(0.02f));
         AddDualRevealStage(
             "Adding trees and grass...",
             primaryObjects: grass,
-            primaryBatchSize: 40,
-            primaryDelay: ScaledEnvDelay(0.003f),
+            primaryBatchSize: 140,
+            primaryDelay: ScaledEnvDelay(0.0009f),
             secondaryObjects: trees,
-            secondaryBatchSize: 3,
-            secondaryDelay: ScaledEnvDelay(0.01f));
+            secondaryBatchSize: 10,
+            secondaryDelay: ScaledEnvDelay(0.006f));
         AddRevealStage("Adding rocks...", rocks, batchSize: 2, delay: ScaledEnvDelay(0.01f));
         AddRevealStage("Adding flowers...", flowers, batchSize: 4, delay: ScaledEnvDelay(0.01f));
         AddRevealStage("Applying finishing touches...", remaining, batchSize: 5, delay: ScaledEnvDelay(0.01f));

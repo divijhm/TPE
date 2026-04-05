@@ -6,7 +6,7 @@ using UnityEngine;
 
 public static class TerrainToGameObjectsConverter
 {
-    private const int MaxDetailObjectsPerTerrain = 15000;
+    private const int MaxDetailObjectsPerTerrain = 23000;
     private const float RockDetailDensityMultiplier = 0.2f;
     private const float WaterSurfacePadding = 0.05f;
 
@@ -16,6 +16,21 @@ public static class TerrainToGameObjectsConverter
         "stone",
         "pebble",
         "boulder"
+    };
+
+    private static readonly string[] TreeKeywords =
+    {
+        "pine_tree",
+        "fruit_tree",
+        "generic_shrub",
+        "tree",
+        "shrub",
+        "stump",
+        "logs",
+        "pine",
+        "oak",
+        "fir",
+        "spruce"
     };
 
     private struct WaterSurface
@@ -118,7 +133,7 @@ public static class TerrainToGameObjectsConverter
 
         if (cappedTerrains > 0)
         {
-            message += "\n\nDetail conversion hit the per-terrain cap on " + cappedTerrains + " terrain(s). Converted details were distributed across each terrain to preserve overall coverage.";
+            message += "\n\nDetail conversion hit the non-tree per-terrain cap on " + cappedTerrains + " terrain(s). Non-tree details were distributed across each terrain to preserve overall coverage, while tree-like detail prefabs were still fully extracted.";
         }
 
         if (clearTerrainData)
@@ -221,39 +236,46 @@ public static class TerrainToGameObjectsConverter
         float cellSizeZ = data.size.z / detailHeight;
         List<WaterSurface> waterSurfaces = GatherWaterSurfaces(terrain.gameObject.scene);
 
-        int totalRequested = 0;
+        int totalRequestedNonTree = 0;
         for (int layer = 0; layer < detailPrototypes.Length; layer++)
         {
             DetailPrototype prototype = detailPrototypes[layer];
-            if (prototype.prototype == null)
+            GameObject detailPrefab = prototype.prototype;
+            if (detailPrefab == null)
             {
                 continue;
             }
+
+            bool isTreeLayer = IsTreeLikeDetailPrefab(detailPrefab);
 
             int[,] map = data.GetDetailLayer(0, 0, detailWidth, detailHeight, layer);
             for (int y = 0; y < detailHeight; y++)
             {
                 for (int x = 0; x < detailWidth; x++)
                 {
-                    totalRequested += map[y, x];
+                    if (!isTreeLayer)
+                    {
+                        totalRequestedNonTree += map[y, x];
+                    }
                 }
             }
         }
 
         float keepRatio = 1f;
-        if (totalRequested > MaxDetailObjectsPerTerrain)
+        if (totalRequestedNonTree > MaxDetailObjectsPerTerrain)
         {
-            keepRatio = (float)MaxDetailObjectsPerTerrain / totalRequested;
+            keepRatio = (float)MaxDetailObjectsPerTerrain / totalRequestedNonTree;
             wasCapped = true;
             Debug.LogWarning(
-                "Detail conversion requested " + totalRequested +
+                "Detail conversion requested " + totalRequestedNonTree +
                 " objects on terrain " + terrain.name +
                 ", exceeding cap " + MaxDetailObjectsPerTerrain +
-                ". Applying distributed downsampling (ratio=" + keepRatio.ToString("F3") + ").");
+                ". Applying distributed downsampling to non-tree detail prefabs (ratio=" + keepRatio.ToString("F3") + ").");
         }
 
         System.Random prng = new System.Random(terrain.GetInstanceID());
         int created = 0;
+        int createdNonTree = 0;
 
         for (int layer = 0; layer < detailPrototypes.Length; layer++)
         {
@@ -266,22 +288,30 @@ public static class TerrainToGameObjectsConverter
                 continue;
             }
 
+            bool isTreeLayer = IsTreeLikeDetailPrefab(detailPrefab);
+
             int[,] map = data.GetDetailLayer(0, 0, detailWidth, detailHeight, layer);
 
             for (int y = 0; y < detailHeight; y++)
             {
                 for (int x = 0; x < detailWidth; x++)
                 {
+                    if (!isTreeLayer && createdNonTree >= MaxDetailObjectsPerTerrain)
+                    {
+                        wasCapped = true;
+                        continue;
+                    }
+
                     int density = map[y, x];
-                    float layerRatio = keepRatio * GetPrototypeDensityMultiplier(detailPrefab);
+                    float layerRatio = isTreeLayer ? 1f : keepRatio * GetPrototypeDensityMultiplier(detailPrefab);
                     int targetCount = GetScaledCount(density, layerRatio, prng);
 
                     for (int i = 0; i < targetCount; i++)
                     {
-                        if (created >= MaxDetailObjectsPerTerrain)
+                        if (!isTreeLayer && createdNonTree >= MaxDetailObjectsPerTerrain)
                         {
                             wasCapped = true;
-                            return created;
+                            break;
                         }
 
                         float px = terrain.transform.position.x + (x + (float)prng.NextDouble()) * cellSizeX;
@@ -310,6 +340,10 @@ public static class TerrainToGameObjectsConverter
 
                         instance.transform.SetParent(root, true);
                         created++;
+                        if (!isTreeLayer)
+                        {
+                            createdNonTree++;
+                        }
                     }
                 }
             }
@@ -330,6 +364,20 @@ public static class TerrainToGameObjectsConverter
         }
 
         return 1f;
+    }
+
+    private static bool IsTreeLikeDetailPrefab(GameObject detailPrefab)
+    {
+        string prefabName = detailPrefab != null ? detailPrefab.name : string.Empty;
+        for (int i = 0; i < TreeKeywords.Length; i++)
+        {
+            if (prefabName.IndexOf(TreeKeywords[i], StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int GetScaledCount(int originalDensity, float keepRatio, System.Random prng)
