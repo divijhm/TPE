@@ -113,78 +113,7 @@ public partial class AIChatWindow
             }
             else if (msg.AssetCards != null && msg.AssetCards.Count > 0)
             {
-                // -- Asset card message -------------------------------------
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                GUILayout.Label("AI:  " + msg.Text, bubbleStyleBot);
-                EditorGUILayout.Space(4);
-
-                // Draw cards in a horizontal strip
-                EditorGUILayout.BeginHorizontal();
-                foreach (var card in msg.AssetCards)
-                {
-                    EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(88));
-
-                    // Thumbnail - clickable button that adds the prefab to the scene
-                    var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(card.Path);
-                    Texture2D thumb = prefab != null ? AssetPreview.GetAssetPreview(prefab) : null;
-                    if (thumb == null && prefab != null) thumb = AssetPreview.GetMiniThumbnail(prefab);
-
-                    Rect thumbRect = GUILayoutUtility.GetRect(80, 80,
-                        GUILayout.Width(80), GUILayout.Height(80));
-
-                    // Highlight on hover
-                    if (thumbRect.Contains(Event.current.mousePosition))
-                        EditorGUI.DrawRect(thumbRect, new Color(1f, 1f, 1f, 0.08f));
-
-                    if (thumb != null)
-                        GUI.DrawTexture(thumbRect, thumb, ScaleMode.ScaleToFit);
-                    else
-                        EditorGUI.DrawRect(thumbRect, new Color(0.25f, 0.25f, 0.25f, 0.8f));
-
-                    // Overlay "Added ✓" badge if already placed
-                    if (card.AddedToScene)
-                    {
-                        var badgeStyle = new GUIStyle(EditorStyles.miniLabel)
-                        {
-                            alignment = TextAnchor.MiddleCenter,
-                            fontStyle = FontStyle.Bold,
-                            fontSize = 9
-                        };
-                        badgeStyle.normal.textColor = Color.white;
-                        var badgeRect = new Rect(thumbRect.x, thumbRect.yMax - 16, thumbRect.width, 16);
-                        EditorGUI.DrawRect(badgeRect, new Color(0.1f, 0.6f, 0.1f, 0.85f));
-                        GUI.Label(badgeRect, "Added ✓", badgeStyle);
-                    }
-
-                    // Detect click on thumbnail
-                    if (Event.current.type == EventType.MouseDown && thumbRect.Contains(Event.current.mousePosition))
-                    {
-                        Event.current.Use();
-                        if (prefab != null)
-                        {
-                            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-                            // Place at a slight offset so multiple placements don't overlap
-                            instance.transform.position = Vector3.zero;
-                            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
-                                UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-                            Selection.activeGameObject = instance;
-                            card.AddedToScene = true;
-                            Repaint();
-                        }
-                    }
-
-                    // Name label (word-wrap)
-                    var nameStyle = new GUIStyle(EditorStyles.miniLabel)
-                    { wordWrap = true, alignment = TextAnchor.MiddleCenter };
-                    GUILayout.Label(card.Name, nameStyle, GUILayout.Width(80));
-
-                    EditorGUILayout.EndVertical();
-                    GUILayout.Space(4);
-                }
-                GUILayout.FlexibleSpace();
-                EditorGUILayout.EndHorizontal();
-                EditorGUILayout.Space(4);
-                EditorGUILayout.EndVertical();
+                DrawAssetCardMessage(msg);
             }
             else
             {
@@ -425,6 +354,130 @@ public partial class AIChatWindow
 
         EditorGUILayout.EndVertical();
         EditorGUILayout.Space(4);
+    }
+
+    private void DrawAssetCardMessage(ChatMessage msg)
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        GUILayout.Label("AI:  " + msg.Text, bubbleStyleBot);
+        EditorGUILayout.Space(4);
+
+        int columns = Mathf.Clamp(msg.AssetCardColumns, 1, 4);
+        if (columns <= 1)
+        {
+            EditorGUILayout.BeginHorizontal();
+            foreach (var card in msg.AssetCards)
+            {
+                DrawAssetCard(msg, card);
+                GUILayout.Space(4);
+            }
+
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+        else
+        {
+            for (int i = 0; i < msg.AssetCards.Count; i += columns)
+            {
+                EditorGUILayout.BeginHorizontal();
+                for (int c = 0; c < columns; c++)
+                {
+                    int idx = i + c;
+                    if (idx < msg.AssetCards.Count)
+                        DrawAssetCard(msg, msg.AssetCards[idx]);
+                    else
+                        GUILayout.Space(88);
+
+                    GUILayout.Space(4);
+                }
+
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.Space(2);
+            }
+        }
+
+        EditorGUILayout.Space(4);
+        EditorGUILayout.EndVertical();
+    }
+
+    private void DrawAssetCard(ChatMessage msg, AssetCard card)
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(88));
+
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(card.Path);
+        Texture2D thumb = prefab != null ? AssetPreview.GetAssetPreview(prefab) : null;
+        if (thumb == null && prefab != null) thumb = AssetPreview.GetMiniThumbnail(prefab);
+
+        Rect thumbRect = GUILayoutUtility.GetRect(80, 80,
+            GUILayout.Width(80), GUILayout.Height(80));
+
+        if (thumbRect.Contains(Event.current.mousePosition))
+            EditorGUI.DrawRect(thumbRect, new Color(1f, 1f, 1f, 0.08f));
+
+        if (thumb != null)
+            GUI.DrawTexture(thumbRect, thumb, ScaleMode.ScaleToFit);
+        else
+            EditorGUI.DrawRect(thumbRect, new Color(0.25f, 0.25f, 0.25f, 0.8f));
+
+        if (card.Selected)
+        {
+            DrawAssetCardBadge(thumbRect, "Selected ✓", new Color(0.10f, 0.45f, 0.90f, 0.88f));
+        }
+        else if (card.AddedToScene)
+        {
+            DrawAssetCardBadge(thumbRect, "Added ✓", new Color(0.10f, 0.60f, 0.10f, 0.85f));
+        }
+
+        if (Event.current.type == EventType.MouseDown && thumbRect.Contains(Event.current.mousePosition))
+        {
+            Event.current.Use();
+            HandleAssetCardClick(msg, card, prefab);
+        }
+
+        var nameStyle = new GUIStyle(EditorStyles.miniLabel)
+        {
+            wordWrap = true,
+            alignment = TextAnchor.MiddleCenter
+        };
+        GUILayout.Label(card.Name, nameStyle, GUILayout.Width(80));
+
+        EditorGUILayout.EndVertical();
+    }
+
+    private void HandleAssetCardClick(ChatMessage msg, AssetCard card, GameObject prefab)
+    {
+        if (msg.AssetCardAction == AssetCardAction.SelectionPrompt)
+        {
+            ConfirmEnvironmentChoice(msg, card);
+            return;
+        }
+
+        if (msg.AssetCardAction != AssetCardAction.InstantiatePrefab || prefab == null)
+            return;
+
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        instance.transform.position = Vector3.zero;
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        Selection.activeGameObject = instance;
+        card.AddedToScene = true;
+        Repaint();
+    }
+
+    private static void DrawAssetCardBadge(Rect thumbRect, string text, Color background)
+    {
+        var badgeStyle = new GUIStyle(EditorStyles.miniLabel)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            fontStyle = FontStyle.Bold,
+            fontSize = 9
+        };
+        badgeStyle.normal.textColor = Color.white;
+
+        var badgeRect = new Rect(thumbRect.x, thumbRect.yMax - 16, thumbRect.width, 16);
+        EditorGUI.DrawRect(badgeRect, background);
+        GUI.Label(badgeRect, text, badgeStyle);
     }
 
     private void DrawMessageAttachments(List<ImageAttachment> attachments)

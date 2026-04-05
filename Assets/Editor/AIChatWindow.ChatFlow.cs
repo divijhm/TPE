@@ -5,6 +5,8 @@ using System.Collections.Generic;
 
 public partial class AIChatWindow
 {
+    private enum AssetCardAction { InstantiatePrefab, SelectionPrompt, None }
+
     // -- Show 4 weapon assets as cards inside the chat window ------------------
     private void ShowWeaponAssets()
     {
@@ -132,6 +134,7 @@ public partial class AIChatWindow
         public string Name;
         public string Path;
         public bool AddedToScene;
+        public bool Selected;
         public AssetCard(string name, string path) { Name = name; Path = path; }
     }
 
@@ -155,11 +158,17 @@ public partial class AIChatWindow
         public string Text;
         public bool IsUser;
         public List<AssetCard> AssetCards; // non-null for asset result messages
+        public int AssetCardColumns;
+        public AssetCardAction AssetCardAction;
+        public EnvironmentChoiceKind ChoiceKind;
         public List<ImageAttachment> ImageAttachments;
         public ChatMessage(string text, bool isUser, List<ImageAttachment> imageAttachments = null)
         {
             Text = text;
             IsUser = isUser;
+            AssetCardColumns = 1;
+            AssetCardAction = AssetCardAction.InstantiatePrefab;
+            ChoiceKind = EnvironmentChoiceKind.None;
             ImageAttachments = imageAttachments;
         }
     }

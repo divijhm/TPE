@@ -83,6 +83,7 @@ public partial class AIChatWindow : EditorWindow
     // -- Agent mode state machine --------------------------------------------
     private enum AgentPhase { None, ChangingScene, EnvironmentReveal, AdjustingScene, Done }
     private enum AgentFlow { UnityScene, EnvironmentFree }
+    private enum EnvironmentChoiceKind { None, Trees, Rocks, Flowers }
 
     private sealed class RevealStage
     {
@@ -139,6 +140,9 @@ public partial class AIChatWindow : EditorWindow
     private bool _envStageAnnounced;
     private double _envPrimaryLastTickTime;
     private double _envSecondaryLastTickTime;
+    private readonly HashSet<string> _envChoicePromptedStages = new HashSet<string>();
+    private bool _envChoiceAwaiting;
+    private EnvironmentChoiceKind _envChoiceAwaitingKind = EnvironmentChoiceKind.None;
 
     private const float ToggleDelay = 0.15f;
     private const float ToolDelay = 2.0f;
@@ -168,6 +172,30 @@ public partial class AIChatWindow : EditorWindow
         "Rethinking the environment...",
         "Fine-tuning the neon signs...",
         "Applying final cyberpunk atmosphere...",
+    };
+
+    private static readonly string[] TreeChoicePrefabPaths =
+    {
+        "Assets/Polytope Studio/Lowpoly_Environments/Prefabs/Trees/PT_Pine_Tree_03_green_cut.prefab",
+        "Assets/Darth_Artisan/Free_Trees/Prefabs/Fir_Tree.prefab",
+        "Assets/Darth_Artisan/Free_Trees/Prefabs/Oak_Tree.prefab",
+        "Assets/Darth_Artisan/Free_Trees/Prefabs/Palm_Tree.prefab",
+    };
+
+    private static readonly string[] RockChoicePrefabPaths =
+    {
+        "Assets/Polytope Studio/Lowpoly_Environments/Prefabs/Rocks/PT_River_Rock_Pile_02.prefab",
+        "Assets/LowlyPoly/Free Stylized Rocks/Prefab/Stone_02.prefab",
+        "Assets/LowlyPoly/Free Stylized Rocks/Prefab/Stone_03.prefab",
+        "Assets/LowlyPoly/Free Stylized Rocks/Prefab/Stone_04.prefab",
+    };
+
+    private static readonly string[] FlowerChoicePrefabPaths =
+    {
+        "Assets/Polytope Studio/Lowpoly_Environments/Prefabs/Flowers/PT_Poppy_02.prefab",
+        "Assets/Emilulz_Assets/DEMOLowPolyFlowers/Prefabs/SM_Daisy_Single.prefab",
+        "Assets/Emilulz_Assets/DEMOLowPolyFlowers/Prefabs/SM_Dandelion_Small.prefab",
+        "Assets/Emilulz_Assets/DEMOLowPolyFlowers/Prefabs/SM_Hyacinth_PastellBlue_Big.prefab",
     };
 
     // -- Styles (lazy-initialised) -------------------------------------------
@@ -276,6 +304,9 @@ public partial class AIChatWindow : EditorWindow
                 {
                     var envRoot = GameObject.Find("envscene");
                     _envRevealRoot = envRoot != null ? envRoot.transform : null;
+                    _envChoicePromptedStages.Clear();
+                    _envChoiceAwaiting = false;
+                    _envChoiceAwaitingKind = EnvironmentChoiceKind.None;
                     BuildEnvironmentRevealStages(envRoot);
                     agentPhase = AgentPhase.EnvironmentReveal;
                     agentStepIdx = 0;
@@ -335,6 +366,15 @@ public partial class AIChatWindow : EditorWindow
             if (agentStepIdx < _envRevealStages.Count)
             {
                 var stage = _envRevealStages[agentStepIdx];
+
+                if (_envChoiceAwaiting)
+                    return;
+
+                if (TryQueueEnvironmentChoicePrompt(stage))
+                {
+                    Repaint();
+                    return;
+                }
 
                 if (!_envStageAnnounced)
                 {
@@ -448,6 +488,8 @@ public partial class AIChatWindow : EditorWindow
         else if (agentPhase == AgentPhase.Done)
         {
             agentPhase = AgentPhase.None;
+            _envChoiceAwaiting = false;
+            _envChoiceAwaitingKind = EnvironmentChoiceKind.None;
         }
     }
 
@@ -642,6 +684,141 @@ public partial class AIChatWindow : EditorWindow
             secondaryObjects,
             secondaryBatchSize,
             secondaryDelay));
+    }
+
+    private bool TryQueueEnvironmentChoicePrompt(RevealStage stage)
+    {
+        if (stage == null || string.IsNullOrWhiteSpace(stage.Message))
+            return false;
+
+        if (_envChoicePromptedStages.Contains(stage.Message))
+            return false;
+
+        EnvironmentChoiceKind kind = GetEnvironmentChoiceForStage(stage.Message);
+        if (kind == EnvironmentChoiceKind.None)
+            return false;
+
+        _envChoicePromptedStages.Add(stage.Message);
+
+        var cards = BuildEnvironmentChoiceCards(kind);
+        if (cards.Count == 0)
+            return false;
+
+        var promptMsg = new ChatMessage(GetEnvironmentChoicePromptText(kind), isUser: false)
+        {
+            AssetCards = cards,
+            AssetCardColumns = 2,
+            AssetCardAction = AssetCardAction.SelectionPrompt,
+            ChoiceKind = kind,
+        };
+
+        messages.Add(promptMsg);
+        _envChoiceAwaiting = true;
+        _envChoiceAwaitingKind = kind;
+        scrollPos.y = float.MaxValue;
+        return true;
+    }
+
+    private static EnvironmentChoiceKind GetEnvironmentChoiceForStage(string stageMessage)
+    {
+        switch (stageMessage)
+        {
+            case "Adding trees and grass...":
+                return EnvironmentChoiceKind.Trees;
+            case "Adding rocks...":
+                return EnvironmentChoiceKind.Rocks;
+            case "Adding flowers...":
+                return EnvironmentChoiceKind.Flowers;
+            default:
+                return EnvironmentChoiceKind.None;
+        }
+    }
+
+    private static string GetEnvironmentChoicePromptText(EnvironmentChoiceKind kind)
+    {
+        switch (kind)
+        {
+            case EnvironmentChoiceKind.Trees:
+                return "Which tree type would you want?";
+            case EnvironmentChoiceKind.Rocks:
+                return "Which rock type would you want?";
+            case EnvironmentChoiceKind.Flowers:
+                return "Which flower type would you want?";
+            default:
+                return "Pick a prefab to continue.";
+        }
+    }
+
+    private static string GetEnvironmentChoiceConfirmedText(EnvironmentChoiceKind kind, string selectedName)
+    {
+        switch (kind)
+        {
+            case EnvironmentChoiceKind.Trees:
+                return "Tree type selected: " + selectedName + ". Continuing scene generation...";
+            case EnvironmentChoiceKind.Rocks:
+                return "Rock type selected: " + selectedName + ". Continuing scene generation...";
+            case EnvironmentChoiceKind.Flowers:
+                return "Flower type selected: " + selectedName + ". Continuing scene generation...";
+            default:
+                return "Choice selected. Continuing scene generation...";
+        }
+    }
+
+    private List<AssetCard> BuildEnvironmentChoiceCards(EnvironmentChoiceKind kind)
+    {
+        string[] prefabPaths;
+        switch (kind)
+        {
+            case EnvironmentChoiceKind.Trees:
+                prefabPaths = TreeChoicePrefabPaths;
+                break;
+            case EnvironmentChoiceKind.Rocks:
+                prefabPaths = RockChoicePrefabPaths;
+                break;
+            case EnvironmentChoiceKind.Flowers:
+                prefabPaths = FlowerChoicePrefabPaths;
+                break;
+            default:
+                prefabPaths = null;
+                break;
+        }
+
+        var cards = new List<AssetCard>();
+        if (prefabPaths == null) return cards;
+
+        for (int i = 0; i < prefabPaths.Length && cards.Count < 4; i++)
+        {
+            string path = prefabPaths[i];
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null) continue;
+
+            AssetPreview.GetAssetPreview(prefab);
+            cards.Add(new AssetCard(prefab.name, path));
+        }
+
+        return cards;
+    }
+
+    private void ConfirmEnvironmentChoice(ChatMessage message, AssetCard selectedCard)
+    {
+        if (message == null || selectedCard == null) return;
+        if (!_envChoiceAwaiting || message.ChoiceKind != _envChoiceAwaitingKind) return;
+
+        if (message.AssetCards != null)
+        {
+            foreach (var card in message.AssetCards)
+                card.Selected = ReferenceEquals(card, selectedCard);
+        }
+
+        message.Text = GetEnvironmentChoiceConfirmedText(message.ChoiceKind, selectedCard.Name);
+        message.AssetCardAction = AssetCardAction.None;
+        message.ChoiceKind = EnvironmentChoiceKind.None;
+
+        _envChoiceAwaiting = false;
+        _envChoiceAwaitingKind = EnvironmentChoiceKind.None;
+        agentStepTime = EditorApplication.timeSinceStartup;
+        scrollPos.y = float.MaxValue;
+        Repaint();
     }
 
     private static bool ContainsAny(string value, string[] keywords)
