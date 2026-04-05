@@ -63,7 +63,16 @@ public partial class AIChatWindow
         // -- Agent mode: run the scene-change + tool sequence ----------------
         if (currentMode == ChatMode.Agent)
         {
-            messages.Add(new ChatMessage("Changing scene...", isUser: false));
+            string activeSceneName = EditorSceneManager.GetActiveScene().name;
+            bool isEnvironmentFlow = IsEnvironmentFreeScene(activeSceneName);
+
+            agentFlow = isEnvironmentFlow
+                ? AgentFlow.EnvironmentFree
+                : AgentFlow.UnityScene;
+
+            messages.Add(new ChatMessage(
+                isEnvironmentFlow ? "Generating scene from images..." : "Changing scene...",
+                isUser: false));
             agentBotMsgIdx = messages.Count - 1;
             agentPhase = AgentPhase.ChangingScene;
             agentStepIdx = -1;

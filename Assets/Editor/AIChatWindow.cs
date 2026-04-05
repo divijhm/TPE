@@ -81,16 +81,76 @@ public partial class AIChatWindow : EditorWindow
     private int dotCount = 1;
 
     // -- Agent mode state machine --------------------------------------------
-    private enum AgentPhase { None, ChangingScene, AdjustingScene, Done }
+    private enum AgentPhase { None, ChangingScene, EnvironmentReveal, AdjustingScene, Done }
+    private enum AgentFlow { UnityScene, EnvironmentFree }
+
+    private sealed class RevealStage
+    {
+        public string Message;
+        public List<GameObject> PrimaryObjects;
+        public int PrimaryBatchSize;
+        public float PrimaryDelay;
+        public List<GameObject> SecondaryObjects;
+        public int SecondaryBatchSize;
+        public float SecondaryDelay;
+        public bool HasSecondary => SecondaryObjects != null && SecondaryObjects.Count > 0;
+
+        public RevealStage(string message, List<GameObject> objects, int batchSize, float delay)
+        {
+            Message = message;
+            PrimaryObjects = objects;
+            PrimaryBatchSize = batchSize;
+            PrimaryDelay = delay;
+            SecondaryObjects = null;
+            SecondaryBatchSize = 0;
+            SecondaryDelay = 0f;
+        }
+
+        public RevealStage(
+            string message,
+            List<GameObject> primaryObjects,
+            int primaryBatchSize,
+            float primaryDelay,
+            List<GameObject> secondaryObjects,
+            int secondaryBatchSize,
+            float secondaryDelay)
+        {
+            Message = message;
+            PrimaryObjects = primaryObjects;
+            PrimaryBatchSize = primaryBatchSize;
+            PrimaryDelay = primaryDelay;
+            SecondaryObjects = secondaryObjects;
+            SecondaryBatchSize = secondaryBatchSize;
+            SecondaryDelay = secondaryDelay;
+        }
+    }
+
     private AgentPhase agentPhase = AgentPhase.None;
+    private AgentFlow agentFlow = AgentFlow.UnityScene;
     private double agentStepTime;
     private int agentStepIdx;
     private int agentBotMsgIdx = -1;
     private List<GameObject> _initChildren = new List<GameObject>();
     private List<GameObject> _toreachChildren = new List<GameObject>();
+    private readonly List<RevealStage> _envRevealStages = new List<RevealStage>();
+    private Transform _envRevealRoot;
+    private int _envRevealObjectIdx;
+    private int _envRevealSecondaryObjectIdx;
+    private bool _envStageAnnounced;
+    private double _envPrimaryLastTickTime;
+    private double _envSecondaryLastTickTime;
 
     private const float ToggleDelay = 0.15f;
     private const float ToolDelay = 2.0f;
+    private const float EnvironmentCompleteDelay = 0.2f;
+    private const float EnvironmentDelayScale = 2.0f;
+
+    private static readonly string[] EnvTerrainKeywords = { "terrain", "ground", "plane" };
+    private static readonly string[] EnvGrassKeywords = { "grass" };
+    private static readonly string[] EnvTreeKeywords = { "tree", "pine", "oak" };
+    private static readonly string[] EnvRockKeywords = { "rock", "stone", "boulder", "cliff" };
+    private static readonly string[] EnvFlowerKeywords = { "flower", "poppy", "mushroom" };
+    private static readonly string[] EnvWaterKeywords = { "water", "ocean", "lake", "pond" };
 
     private static readonly string[] AdjustToolPaths =
     {
@@ -212,6 +272,20 @@ public partial class AIChatWindow : EditorWindow
             // -- Bootstrap: collect children & enable wireframe ---------------
             if (agentStepIdx == -1)
             {
+                if (agentFlow == AgentFlow.EnvironmentFree)
+                {
+                    var envRoot = GameObject.Find("envscene");
+                    _envRevealRoot = envRoot != null ? envRoot.transform : null;
+                    BuildEnvironmentRevealStages(envRoot);
+                    agentPhase = AgentPhase.EnvironmentReveal;
+                    agentStepIdx = 0;
+                    _envRevealObjectIdx = 0;
+                    _envRevealSecondaryObjectIdx = 0;
+                    _envStageAnnounced = false;
+                    agentStepTime = now;
+                    return;
+                }
+
                 var initGO = GameObject.Find("init");
                 _initChildren.Clear();
                 if (initGO != null)
@@ -256,8 +330,99 @@ public partial class AIChatWindow : EditorWindow
             agentStepTime = now;
             Repaint();
         }
+        else if (agentPhase == AgentPhase.EnvironmentReveal)
+        {
+            if (agentStepIdx < _envRevealStages.Count)
+            {
+                var stage = _envRevealStages[agentStepIdx];
+
+                if (!_envStageAnnounced)
+                {
+                    AddBotMsg(stage.Message);
+                    _envStageAnnounced = true;
+                    _envRevealObjectIdx = 0;
+                    _envRevealSecondaryObjectIdx = 0;
+                    _envPrimaryLastTickTime = now;
+                    _envSecondaryLastTickTime = now;
+                    agentStepTime = now;
+                    Repaint();
+                    return;
+                }
+
+                bool progressed = false;
+
+                if (_envRevealObjectIdx < stage.PrimaryObjects.Count
+                    && now - _envPrimaryLastTickTime >= stage.PrimaryDelay)
+                {
+                    int batch = Mathf.Max(1, stage.PrimaryBatchSize);
+                    int endIdx = Mathf.Min(stage.PrimaryObjects.Count, _envRevealObjectIdx + batch);
+
+                    while (_envRevealObjectIdx < endIdx)
+                    {
+                        var go = stage.PrimaryObjects[_envRevealObjectIdx];
+                        ActivateWithParents(go, _envRevealRoot);
+                        _envRevealObjectIdx++;
+                    }
+
+                    _envPrimaryLastTickTime = now;
+                    progressed = true;
+                }
+
+                if (stage.HasSecondary
+                    && _envRevealSecondaryObjectIdx < stage.SecondaryObjects.Count
+                    && now - _envSecondaryLastTickTime >= stage.SecondaryDelay)
+                {
+                    int batch = Mathf.Max(1, stage.SecondaryBatchSize);
+                    int endIdx = Mathf.Min(stage.SecondaryObjects.Count, _envRevealSecondaryObjectIdx + batch);
+
+                    while (_envRevealSecondaryObjectIdx < endIdx)
+                    {
+                        var go = stage.SecondaryObjects[_envRevealSecondaryObjectIdx];
+                        ActivateWithParents(go, _envRevealRoot);
+                        _envRevealSecondaryObjectIdx++;
+                    }
+
+                    _envSecondaryLastTickTime = now;
+                    progressed = true;
+                }
+
+                if (progressed)
+                {
+                    Repaint();
+                }
+
+                bool primaryDone = _envRevealObjectIdx >= stage.PrimaryObjects.Count;
+                bool secondaryDone = !stage.HasSecondary
+                    || _envRevealSecondaryObjectIdx >= stage.SecondaryObjects.Count;
+
+                if (primaryDone && secondaryDone)
+                {
+                    agentStepIdx++;
+                    _envRevealObjectIdx = 0;
+                    _envRevealSecondaryObjectIdx = 0;
+                    _envStageAnnounced = false;
+                    agentStepTime = now;
+                }
+            }
+            else
+            {
+                if (now - agentStepTime >= EnvironmentCompleteDelay * EnvironmentDelayScale)
+                {
+                    AddBotMsg("Your scene is ready!");
+                    agentPhase = AgentPhase.Done;
+                    agentStepTime = now;
+                    Repaint();
+                }
+            }
+        }
         else if (agentPhase == AgentPhase.AdjustingScene)
         {
+            if (agentFlow != AgentFlow.UnityScene)
+            {
+                agentPhase = AgentPhase.Done;
+                return;
+            }
+
             if (agentStepIdx < AdjustToolPaths.Length)
             {
                 if (now - agentStepTime >= ToolDelay)
@@ -306,5 +471,202 @@ public partial class AIChatWindow : EditorWindow
         sv.cameraMode = SceneView.GetBuiltinCameraMode(
             enable ? DrawCameraMode.TexturedWire : DrawCameraMode.Textured);
         sv.Repaint();
+    }
+
+    private static bool IsEnvironmentFreeScene(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName)) return false;
+
+        string normalized = sceneName
+            .Replace("_", string.Empty)
+            .Replace(" ", string.Empty)
+            .ToLowerInvariant();
+
+        return normalized == "environmentfree";
+    }
+
+    private void BuildEnvironmentRevealStages(GameObject envRoot)
+    {
+        _envRevealStages.Clear();
+        if (envRoot == null) return;
+
+        var allObjects = new List<GameObject>();
+        CollectDescendantsPreOrder(envRoot.transform, allObjects);
+
+        var terrain = new List<GameObject>();
+        var grass = new List<GameObject>();
+        var trees = new List<GameObject>();
+        var rocks = new List<GameObject>();
+        var flowers = new List<GameObject>();
+        var water = new List<GameObject>();
+        var lights = new List<GameObject>();
+        var remaining = new List<GameObject>();
+
+        for (int i = 0; i < allObjects.Count; i++)
+        {
+            var go = allObjects[i];
+            if (go == null) continue;
+
+            if (go.GetComponent<Light>() != null)
+            {
+                lights.Add(go);
+                continue;
+            }
+
+            // Reset reveal targets so objects can be rebuilt one by one.
+            go.SetActive(false);
+
+            string n = go.name.ToLowerInvariant();
+            bool isGrass = ContainsAny(n, EnvGrassKeywords);
+            bool isTree = ContainsAny(n, EnvTreeKeywords);
+            bool isRock = ContainsAny(n, EnvRockKeywords);
+            bool isFlower = ContainsAny(n, EnvFlowerKeywords);
+            bool isTerrain = ContainsAny(n, EnvTerrainKeywords);
+
+            if (IsWaterObject(go, n))
+            {
+                water.Add(go);
+            }
+            else if (isGrass)
+            {
+                grass.Add(go);
+            }
+            else if (isTree)
+            {
+                trees.Add(go);
+            }
+            else if (isRock)
+            {
+                rocks.Add(go);
+            }
+            else if (isFlower)
+            {
+                flowers.Add(go);
+            }
+            else if (isTerrain)
+            {
+                terrain.Add(go);
+            }
+            else
+            {
+                remaining.Add(go);
+            }
+        }
+
+        // Keep light visible from the beginning so scene buildup is never dark.
+        for (int i = 0; i < lights.Count; i++)
+            ActivateWithParents(lights[i], envRoot.transform);
+
+        // Water must appear at the very end as part of finishing touches.
+        remaining.AddRange(water);
+
+        AddRevealStage("Populating terrain...", terrain, batchSize: 1, delay: ScaledEnvDelay(0.05f));
+        AddDualRevealStage(
+            "Adding trees and grass...",
+            primaryObjects: grass,
+            primaryBatchSize: 40,
+            primaryDelay: ScaledEnvDelay(0.003f),
+            secondaryObjects: trees,
+            secondaryBatchSize: 3,
+            secondaryDelay: ScaledEnvDelay(0.01f));
+        AddRevealStage("Adding rocks...", rocks, batchSize: 2, delay: ScaledEnvDelay(0.01f));
+        AddRevealStage("Adding flowers...", flowers, batchSize: 4, delay: ScaledEnvDelay(0.01f));
+        AddRevealStage("Applying finishing touches...", remaining, batchSize: 5, delay: ScaledEnvDelay(0.01f));
+    }
+
+    private static float ScaledEnvDelay(float baseDelay)
+    {
+        return baseDelay * EnvironmentDelayScale;
+    }
+
+    private static void CollectDescendantsPreOrder(Transform root, List<GameObject> output)
+    {
+        if (root == null || output == null) return;
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            var child = root.GetChild(i);
+            output.Add(child.gameObject);
+            CollectDescendantsPreOrder(child, output);
+        }
+    }
+
+    private static void ActivateWithParents(GameObject go, Transform stopAt)
+    {
+        if (go == null) return;
+
+        Transform t = go.transform;
+        while (t != null)
+        {
+            if (!t.gameObject.activeSelf)
+                t.gameObject.SetActive(true);
+
+            if (t == stopAt) break;
+            t = t.parent;
+        }
+    }
+
+    private void AddRevealStage(string message, List<GameObject> objects, int batchSize, float delay)
+    {
+        if (objects == null || objects.Count == 0) return;
+        _envRevealStages.Add(new RevealStage(message, objects, batchSize, delay));
+    }
+
+    private void AddDualRevealStage(
+        string message,
+        List<GameObject> primaryObjects,
+        int primaryBatchSize,
+        float primaryDelay,
+        List<GameObject> secondaryObjects,
+        int secondaryBatchSize,
+        float secondaryDelay)
+    {
+        bool hasPrimary = primaryObjects != null && primaryObjects.Count > 0;
+        bool hasSecondary = secondaryObjects != null && secondaryObjects.Count > 0;
+        if (!hasPrimary && !hasSecondary) return;
+
+        if (!hasPrimary)
+        {
+            AddRevealStage(message, secondaryObjects, secondaryBatchSize, secondaryDelay);
+            return;
+        }
+
+        if (!hasSecondary)
+        {
+            AddRevealStage(message, primaryObjects, primaryBatchSize, primaryDelay);
+            return;
+        }
+
+        _envRevealStages.Add(new RevealStage(
+            message,
+            primaryObjects,
+            primaryBatchSize,
+            primaryDelay,
+            secondaryObjects,
+            secondaryBatchSize,
+            secondaryDelay));
+    }
+
+    private static bool ContainsAny(string value, string[] keywords)
+    {
+        for (int i = 0; i < keywords.Length; i++)
+        {
+            if (value.Contains(keywords[i]))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsWaterObject(GameObject go, string lowerName)
+    {
+        if (ContainsAny(lowerName, EnvWaterKeywords))
+            return true;
+
+        var renderer = go.GetComponent<Renderer>();
+        var material = renderer != null ? renderer.sharedMaterial : null;
+        if (material == null) return false;
+
+        string matName = material.name.ToLowerInvariant();
+        return matName.Contains("water");
     }
 }
